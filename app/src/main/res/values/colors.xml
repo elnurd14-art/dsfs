@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colors - Dark Theme -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Background -->
+    <color name="bg_primary">#0D1117</color>
+    <color name="bg_secondary">#161B22</color>
+    <color name="bg_tertiary">#21262D</color>
+    
+    <!-- Text -->
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#8B949E</color>
+    <color name="text_tertiary">#6E7681</color>
+    
+    <!-- Status Colors -->
+    <color name="green_500">#3FB950</color>
+    <color name="green_900">#238636</color>
+    <color name="red_500">#F85149</color>
+    <color name="red_900">#DA3633</color>
+    <color name="orange_500">#D29922</color>
+    <color name="orange_900">#9E6A03</color>
+    <color name="blue_500">#58A6FF</color>
+    <color name="blue_900">#1F6FEB</color>
+    
+    <!-- Neutral -->
+    <color name="gray_500">#6E7681</color>
+    <color name="gray_900">#30363D</color>
+    
+    <!-- Accent -->
+    <color name="accent">#238636</color>
+</resources>

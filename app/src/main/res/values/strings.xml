@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">inDrive Авто-Принятие</string>
+    <string name="app_description">Автоматический приём заказов</string>
+    
+    <!-- Accessibility -->
+    <string name="accessibility_service_description">
+        Этот сервис отслеживает приложение inDrive и автоматически принимает входящие заказы.
+        Требуется разрешение на специальные возможности для взаимодействия с интерфейсом inDrive.
+    </string>
+    
+    <!-- Labels -->
+    <string name="status">Статус</string>
+    <string name="orders_accepted">Принято</string>
+    <string name="orders_missed">Пропущено</string>
+    <string name="earnings">Заработок (₸)</string>
+    
+    <!-- Buttons -->
+    <string name="start_bot">Запустить бот</string>
+    <string name="stop_bot">Остановить бот</string>
+    <string name="settings">Настройки</string>
+    <string name="statistics">Статистика</string>
+    <string name="grant_permissions">Выдать разрешения</string>
+    
+    <!-- Status -->
+    <string name="status_running">🟢 РАБОТАЕТ</string>
+    <string name="status_stopped">🔴 ОСТАНОВЛЕН</string>
+    <string name="status_permission_needed">⚠️ НУЖНЫ РАЗРЕШЕНИЯ</string>
+    
+    <!-- Settings -->
+    <string name="auto_bid">Авто-ставка</string>
+    <string name="auto_bid_description">Автоматически делать ставки на заказы</string>
+    <string name="notifications">Уведомления</string>
+    <string name="notifications_description">Показывать уведомления о принятых заказах</string>
+    <string name="min_price">Минимальная цена (₸)</string>
+    <string name="max_distance">Максимальное расстояние (км)</string>
+    
+    <!-- Permissions -->
+    <string name="permission_overlay">Разрешение на наложение</string>
+    <string name="permission_accessibility">Разрешение на спец. возможности</string>
+    <string name="permission_overlay_description">Требуется для отображения управления поверх других приложений</string>
+    <string name="permission_accessibility_description">Требуется для взаимодействия с приложением inDrive</string>
+</resources>
