@@ -35,7 +35,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📦 inDrive Посылки"
+                        android:text="📦 inDrive Бот"
                         android:textColor="@color/white"
                         android:textSize="22sp"
                         android:textStyle="bold"/>
@@ -43,7 +43,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Казахстан • Авто-звонок • Межгород"
+                        android:text="Казахстан • Посылки • Попутчики"
                         android:textColor="#FFE0B2"
                         android:textSize="12sp"/>
                 </LinearLayout>
@@ -119,24 +119,24 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="12dp"/>
 
-                <!-- Кнопки выбора режима -->
+                <!-- Кнопки выбора режима — 3 варианта -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
                     android:orientation="horizontal"
-                    android:weightSum="2">
+                    android:weightSum="3">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnModeAll"
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
+                        android:layout_marginEnd="3dp"
                         android:backgroundTint="@color/primary"
-                        android:text="📦 Город + Межгород"
+                        android:text="📦 Город"
                         android:textAllCaps="false"
                         android:textColor="@color/white"
-                        android:textSize="13sp"
+                        android:textSize="11sp"
                         app:cornerRadius="10dp"/>
 
                     <com.google.android.material.button.MaterialButton
@@ -144,12 +144,26 @@
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:layout_marginStart="4dp"
+                        android:layout_marginStart="3dp"
+                        android:layout_marginEnd="3dp"
                         android:backgroundTint="@color/gray_500"
-                        android:text="🚚 Только межгород"
+                        android:text="🚚 Межгород"
                         android:textAllCaps="false"
                         android:textColor="@color/white"
-                        android:textSize="13sp"
+                        android:textSize="11sp"
+                        app:cornerRadius="10dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnModeCarpool"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:layout_marginStart="3dp"
+                        android:backgroundTint="@color/gray_500"
+                        android:text="🚗 Попутчики"
+                        android:textAllCaps="false"
+                        android:textColor="@color/white"
+                        android:textSize="11sp"
                         app:cornerRadius="10dp"/>
 
                 </LinearLayout>
@@ -304,9 +318,10 @@
                         android:text="ВКЛ" android:textColor="@color/white" android:textSize="11sp" android:textStyle="bold"/>
                 </LinearLayout>
 
-                <!-- Межгород -->
+                <!-- Межгород посылки -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:gravity="center_vertical" android:orientation="horizontal">
+                    android:gravity="center_vertical" android:orientation="horizontal"
+                    android:layout_marginBottom="10dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="🚚" android:textSize="22sp" android:layout_marginEnd="10dp"/>
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
@@ -318,6 +333,26 @@
                             android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold"/>
                     </LinearLayout>
                     <TextView android:id="@+id/tvMinIntercityStatus" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:background="@drawable/badge_green"
+                        android:paddingStart="8dp" android:paddingEnd="8dp"
+                        android:paddingTop="3dp" android:paddingBottom="3dp"
+                        android:text="ВКЛ" android:textColor="@color/white" android:textSize="11sp" android:textStyle="bold"/>
+                </LinearLayout>
+
+                <!-- Попутчики -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center_vertical" android:orientation="horizontal">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="🚗" android:textSize="22sp" android:layout_marginEnd="10dp"/>
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Межгород попутчики" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                        <TextView android:id="@+id/tvMinCarpoolPrice" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="5 000 ₸"
+                            android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold"/>
+                    </LinearLayout>
+                    <TextView android:id="@+id/tvMinCarpoolStatus" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:background="@drawable/badge_green"
                         android:paddingStart="8dp" android:paddingEnd="8dp"
                         android:paddingTop="3dp" android:paddingBottom="3dp"

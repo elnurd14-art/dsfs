@@ -100,8 +100,11 @@ class InDriverAccessibilityService : AccessibilityService() {
         // === Определяем что за экран ===
         val isOrderFeed = isOrderFeedScreen(fullText)
         val isSingleOrder = isSingleOrderScreen(fullText)
+        val isCarpoolFeed = isCarpoolFeedScreen(fullText)
 
         when {
+            isCarpoolFeed && prefs.getMode() == PreferenceManager.MODE_CARPOOL ->
+                processCarpoolFeed(texts, fullText)
             isOrderFeed -> processOrderFeed(texts, fullText)
             isSingleOrder -> processSingleOrder(texts, fullText)
         }
@@ -118,6 +121,13 @@ class InDriverAccessibilityService : AccessibilityService() {
                (text.contains("₸") || text.contains("тенге", ignoreCase = true))
     }
 
+    // Экран попутчиков (вкладка «Попутки» — фото 1)
+    private fun isCarpoolFeedScreen(text: String): Boolean {
+        return (text.contains("С попутчиками", ignoreCase = true) ||
+                text.contains("Попутки", ignoreCase = true)) &&
+               (text.contains("₸") || text.contains("тенге", ignoreCase = true))
+    }
+
     // Экран одного заказа (открытая карточка)
     private fun isSingleOrderScreen(text: String): Boolean {
         return listOf(
@@ -128,6 +138,111 @@ class InDriverAccessibilityService : AccessibilityService() {
     }
 
     // ================================================================
+    //  ОБРАБОТКА ПОПУТЧИКОВ (вкладка «Попутки» — пассажирское приложение)
+    //  Логика: найти карточку → проверить цену → нажать "Откликнуться" →
+    //          после открытия карточки номер станет виден → позвонить
+    // ================================================================
+    private fun processCarpoolFeed(texts: List<String>, fullText: String) {
+        // Карточки попутчиков содержат цену в ₸ и «С попутчиками»
+        val pricePattern = Regex("""(\d[\d\s]{2,8})\s*[₸Т]""")
+        val matches = pricePattern.findAll(fullText)
+
+        for (match in matches) {
+            val rawPrice = match.groupValues[1].replace("\s".toRegex(), "").toDoubleOrNull() ?: continue
+            if (rawPrice < 500 || rawPrice > 9_999_999) continue
+
+            val cardText = fullText.substring(
+                maxOf(0, match.range.first - 50),
+                minOf(fullText.length, match.range.last + 400)
+            )
+
+            // Извлекаем города из карточки попутчика
+            val cityFrom = PreferenceManager.KZ_CITIES.firstOrNull {
+                cardText.contains(it, ignoreCase = true)
+            } ?: ""
+            val cityTo = PreferenceManager.KZ_CITIES.lastOrNull {
+                cardText.contains(it, ignoreCase = true) && it != cityFrom
+            } ?: ""
+
+            val cardKey = "${rawPrice}_$cityFrom".hashCode()
+            if (processedOrders.contains(cardKey)) continue
+
+            // Фильтр минимальной цены
+            if (prefs.isMinCarpoolPriceEnabled() && rawPrice < prefs.getMinCarpoolPrice()) {
+                Log.d(TAG, "🚗 Попутчик ${rawPrice.toInt()}₸ < мин ${prefs.getMinCarpoolPrice().toInt()}₸")
+                continue
+            }
+
+            // Фильтр городов назначения
+            if (prefs.isCityFilterEnabled() && cityTo.isNotEmpty()) {
+                if (prefs.getAllowedCities().none { cityTo.contains(it, ignoreCase = true) }) {
+                    Log.d(TAG, "🚗 Попутчик — город $cityTo не в списке")
+                    continue
+                }
+            }
+
+            // Подходит! Нажимаем «Откликнуться» / «С попутчиками»
+            processedOrders.add(cardKey)
+            if (processedOrders.size > 50) processedOrders.clear()
+
+            prefs.incrementAccepted()
+            val summary = "🚗 ПОПУТЧИК
+💵 ${rawPrice.toInt()} ₸
+📍 $cityFrom → $cityTo
+→ Нажимаю «Откликнуться»..."
+            prefs.setLastOrderInfo(summary)
+            onOrderDetected?.invoke(
+                OrderInfo(rawPrice, 0.0, 0.0, 0.0, 0, "", "", cityFrom, cityTo,
+                    cityFrom, cityTo, "", true, "Попутчики", cardText)
+            )
+
+            // Нажимаем кнопку «Откликнуться» или «С попутчиками»
+            handler.postDelayed({ tapCarpoolAcceptButton() }, prefs.getCallDelayMs())
+            break
+        }
+    }
+
+    // Ищем и нажимаем кнопку принятия попутчика через Accessibility
+    private fun tapCarpoolAcceptButton() {
+        val root = rootInActiveWindow ?: return
+        val targets = listOf("Откликнуться", "С попутчиками", "Принять", "Отклик")
+        for (targetText in targets) {
+            val node = findNodeByText(root, targetText)
+            if (node != null) {
+                val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                if (!clicked) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                Log.d(TAG, "✅ Нажали: $targetText")
+                handler.post {
+                    Toast.makeText(applicationContext,
+                        "🚗 Нажали «$targetText»! Жди звонка...",
+                        Toast.LENGTH_LONG).show()
+                }
+                prefs.incrementCalls()
+                return
+            }
+        }
+        Log.d(TAG, "⚠️ Кнопка откликнуться не найдена")
+        handler.post {
+            Toast.makeText(applicationContext,
+                "🚗 Подходящий попутчик — нажми «Откликнуться» сам",
+                Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Поиск узла по тексту рекурсивно
+    private fun findNodeByText(node: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
+        val nodeText = node.text?.toString() ?: ""
+        val nodeDesc = node.contentDescription?.toString() ?: ""
+        if ((nodeText.contains(text, ignoreCase = true) || nodeDesc.contains(text, ignoreCase = true))
+            && node.isClickable) return node
+        for (i in 0 until node.childCount) {
+            val found = node.getChild(i)?.let { findNodeByText(it, text) }
+            if (found != null) return found
+        }
+        return null
+    }
+
+        // ================================================================
     //  ОБРАБОТКА ЛЕНТЫ ЗАКАЗОВ (фото 3 — главный экран водителя)
     // ================================================================
     private fun processOrderFeed(texts: List<String>, fullText: String) {
@@ -368,8 +483,11 @@ class InDriverAccessibilityService : AccessibilityService() {
                 return false to "Вне рабочего времени"
         }
         // Режим
-        if (prefs.getMode() == PreferenceManager.MODE_INTERCITY && !info.isIntercity)
+        val mode = prefs.getMode()
+        if (mode == PreferenceManager.MODE_INTERCITY && !info.isIntercity)
             return false to "Не межгородской"
+        if (mode == PreferenceManager.MODE_CARPOOL && info.orderType != "Попутчики")
+            return false to "Не попутчик"
         // Blacklist
         if (info.phone.isNotEmpty() && prefs.isBlacklisted(info.phone))
             return false to "Blacklist"

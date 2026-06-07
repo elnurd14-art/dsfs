@@ -95,9 +95,15 @@ class MainActivity : AppCompatActivity() {
             updateModeButtons()
         }
 
-        // Режим: только межгород
+        // Режим: только межгород посылки
         binding.btnModeIntercity.setOnClickListener {
             prefs.setMode(PreferenceManager.MODE_INTERCITY)
+            updateModeButtons()
+        }
+
+        // Режим: попутчики (межгород пассажиры)
+        binding.btnModeCarpool.setOnClickListener {
+            prefs.setMode(PreferenceManager.MODE_CARPOOL)
             updateModeButtons()
         }
 
@@ -180,6 +186,9 @@ class MainActivity : AppCompatActivity() {
                 prefs.setMinPrice(db.etMinPrice.text.toString().toDoubleOrNull() ?: 2000.0)
                 prefs.setMinIntercityPriceEnabled(db.switchMinIntercityPrice.isChecked)
                 prefs.setMinIntercityPrice(db.etMinIntercityPrice.text.toString().toDoubleOrNull() ?: 5000.0)
+                prefs.setMinCarpoolPriceEnabled(true)
+                // carpool price uses intercity price field or same field
+                prefs.setMinCarpoolPrice(db.etMinIntercityPrice.text.toString().toDoubleOrNull() ?: 5000.0)
                 val delaySec = db.etCallDelay.text.toString().toLongOrNull()?.coerceIn(0, 30) ?: 1
                 prefs.setCallDelayMs(delaySec * 1000)
                 loadUI()
@@ -279,15 +288,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateModeButtons() {
-        val isIntercity = prefs.getMode() == PreferenceManager.MODE_INTERCITY
+        val mode = prefs.getMode()
         binding.btnModeAll.backgroundTintList =
-            ContextCompat.getColorStateList(this, if (!isIntercity) R.color.primary else R.color.gray_500)
+            ContextCompat.getColorStateList(this, if (mode == PreferenceManager.MODE_ALL) R.color.primary else R.color.gray_500)
         binding.btnModeIntercity.backgroundTintList =
-            ContextCompat.getColorStateList(this, if (isIntercity) R.color.primary else R.color.gray_500)
-        binding.tvModeDesc.text = if (isIntercity)
-            "🚚 Только межгород: бот игнорирует городские заказы. Звонит только на дальние рейсы."
-        else
-            "ℹ️ Принимаются все посылки: городская и межгород. Межгород — отдельная мин. цена."
+            ContextCompat.getColorStateList(this, if (mode == PreferenceManager.MODE_INTERCITY) R.color.primary else R.color.gray_500)
+        binding.btnModeCarpool.backgroundTintList =
+            ContextCompat.getColorStateList(this, if (mode == PreferenceManager.MODE_CARPOOL) R.color.primary else R.color.gray_500)
+        binding.tvModeDesc.text = when (mode) {
+            PreferenceManager.MODE_INTERCITY ->
+                "🚚 Только межгород посылки: игнорирует городские заказы."
+            PreferenceManager.MODE_CARPOOL ->
+                "🚗 Попутчики: бот смотрит вкладку «Попутки» и автоматически нажимает «Откликнуться»."
+            else ->
+                "📦 Принимаются все посылки: городская и межгород. Межгород — отдельная мин. цена."
+        }
     }
 
     private fun updateCitiesUI() {
@@ -300,6 +315,8 @@ class MainActivity : AppCompatActivity() {
         setFilterBadge(binding.tvMinPriceStatus, prefs.isMinPriceEnabled())
         binding.tvMinIntercityPrice.text = "${prefs.getMinIntercityPrice().toInt()} ₸"
         setFilterBadge(binding.tvMinIntercityStatus, prefs.isMinIntercityPriceEnabled())
+        binding.tvMinCarpoolPrice.text = "${prefs.getMinCarpoolPrice().toInt()} ₸"
+        setFilterBadge(binding.tvMinCarpoolStatus, prefs.isMinCarpoolPriceEnabled())
     }
 
     private fun setFilterBadge(view: android.widget.TextView, enabled: Boolean) {

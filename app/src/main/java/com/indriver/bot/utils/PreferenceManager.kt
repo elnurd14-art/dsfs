@@ -82,9 +82,16 @@ class PreferenceManager(context: Context) {
     fun isBlacklisted(phone: String): Boolean =
         getBlacklist().contains(phone.replace("[^0-9]".toRegex(), ""))
 
+    // ===== ПОПУТЧИКИ =====
+    fun isMinCarpoolPriceEnabled(): Boolean = prefs.getBoolean("filter_min_carpool_price_on", true)
+    fun setMinCarpoolPriceEnabled(v: Boolean) = prefs.edit().putBoolean("filter_min_carpool_price_on", v).apply()
+    fun getMinCarpoolPrice(): Double = prefs.getFloat("filter_min_carpool_price", 5000f).toDouble()
+    fun setMinCarpoolPrice(v: Double) = prefs.edit().putFloat("filter_min_carpool_price", v.toFloat()).apply()
+
     companion object {
-        const val MODE_ALL = "all"           // городская + межгород
-        const val MODE_INTERCITY = "intercity" // только межгород
+        const val MODE_ALL = "all"           // городская + межгород посылки
+        const val MODE_INTERCITY = "intercity" // только межгород посылки
+        const val MODE_CARPOOL = "carpool"   // только межгород попутчики
 
         val KZ_CITIES = listOf(
             "Алматы", "Астана", "Шымкент", "Актобе", "Тараз",
