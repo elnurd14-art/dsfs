@@ -48,8 +48,8 @@ class MainActivity : AppCompatActivity() {
                 binding.tvLastOrder.text = buildString {
                     if (info.isIntercity) append("🚚 МЕЖГОРОД\n") else append("📦 Городская доставка\n")
                     if (info.price > 0) append("💵 ${info.price.toInt()} ₸\n")
-                    if (info.destination.isNotEmpty()) append("📍 Назначение: ${info.destination}\n")
-                    if (info.distance > 0) append("🛣️ ${"%.0f".format(info.distance)} км\n")
+                    if (info.cityTo.isNotEmpty()) append("📍 Назначение: ${info.cityTo}\n")
+                    if (info.distanceToClient > 0) append("🛣️ ${"%.0f".format(info.distanceToClient)} км\n")
                     if (info.phone.isNotEmpty()) append("📞 ${info.phone}")
                     if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty())
                         append("\n→ Звоним автоматически...")
