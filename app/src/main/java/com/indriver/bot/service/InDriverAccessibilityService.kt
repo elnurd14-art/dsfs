@@ -148,7 +148,7 @@ class InDriverAccessibilityService : AccessibilityService() {
         val matches = pricePattern.findAll(fullText)
 
         for (match in matches) {
-            val rawPrice = match.groupValues[1].replace("\s".toRegex(), "").toDoubleOrNull() ?: continue
+            val rawPrice = match.groupValues[1].replace("\\s".toRegex(), "").toDoubleOrNull() ?: continue
             if (rawPrice < 500 || rawPrice > 9_999_999) continue
 
             val cardText = fullText.substring(
@@ -186,10 +186,7 @@ class InDriverAccessibilityService : AccessibilityService() {
             if (processedOrders.size > 50) processedOrders.clear()
 
             prefs.incrementAccepted()
-            val summary = "🚗 ПОПУТЧИК
-💵 ${rawPrice.toInt()} ₸
-📍 $cityFrom → $cityTo
-→ Нажимаю «Откликнуться»..."
+            val summary = "🚗 ПОПУТЧИК\n💵 ${rawPrice.toInt()} ₸\n📍 $cityFrom → $cityTo\n→ Нажимаю «Откликнуться»..."
             prefs.setLastOrderInfo(summary)
             onOrderDetected?.invoke(
                 OrderInfo(rawPrice, 0.0, 0.0, 0.0, 0, "", "", cityFrom, cityTo,
