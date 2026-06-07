@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -42,33 +43,30 @@ class MainActivity : AppCompatActivity() {
         loadUI()
         checkPermissions()
 
-        // Callback: заказ принят
         InDriverAccessibilityService.onOrderDetected = { info ->
             runOnUiThread {
-                binding.tvLastOrder.text = buildString {
-                    if (info.isIntercity) append("🚚 МЕЖГОРОД\n") else append("📦 Городская доставка\n")
-                    if (info.price > 0) append("💵 ${info.price.toInt()} ₸\n")
-                    if (info.cityTo.isNotEmpty()) append("📍 Назначение: ${info.cityTo}\n")
-                    if (info.distanceToClient > 0) append("🛣️ ${"%.0f".format(info.distanceToClient)} км\n")
-                    if (info.phone.isNotEmpty()) append("📞 ${info.phone}")
-                    if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty())
-                        append("\n→ Звоним автоматически...")
-                }
+                val sb = StringBuilder()
+                if (info.orderType == "Попутчики") sb.append("ПОПУТЧИК\n")
+                else if (info.isIntercity) sb.append("МЕЖГОРОД\n")
+                else sb.append("ГОРОД\n")
+                if (info.price > 0) sb.append("${info.price.toInt()} ₸\n")
+                if (info.cityFrom.isNotEmpty() && info.cityTo.isNotEmpty())
+                    sb.append("${info.cityFrom} → ${info.cityTo}\n")
+                else if (info.cityTo.isNotEmpty()) sb.append("→ ${info.cityTo}\n")
+                if (info.phone.isNotEmpty()) sb.append("${info.phone}")
+                binding.tvLastOrder.text = sb.toString().trimEnd()
                 binding.tvLastOrder.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
                 loadStats()
             }
         }
 
-        // Callback: заказ отклонён
-        InDriverAccessibilityService.onOrderRejected = { info, reason ->
+        InDriverAccessibilityService.onOrderRejected = { _, _ ->
             runOnUiThread { loadStats() }
         }
     }
 
-    // ==================== LISTENERS ====================
     private fun setupListeners() {
-
-        // Главный переключатель
+        // Bot toggle
         binding.switchAutoAccept.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked && !checkPermissions()) {
                 binding.switchAutoAccept.isChecked = false
@@ -77,79 +75,165 @@ class MainActivity : AppCompatActivity() {
             if (isChecked) {
                 BotService.start(this)
                 InDriverAccessibilityService.isRunning = true
-                binding.tvStatusLabel.text = "🟢 БОТ РАБОТАЕТ"
+                binding.tvStatusLabel.text = "БОТ РАБОТАЕТ"
                 binding.tvStatusDesc.text = "Жду заказы — откройте inDrive"
-                Toast.makeText(this, "🟢 Бот запущен! Откройте inDrive", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Бот запущен! Откройте inDrive", Toast.LENGTH_LONG).show()
             } else {
                 BotService.stop(this)
                 InDriverAccessibilityService.isRunning = false
-                binding.tvStatusLabel.text = "🔴 БОТ ОСТАНОВЛЕН"
+                binding.tvStatusLabel.text = "БОТ ОСТАНОВЛЕН"
                 binding.tvStatusDesc.text = "Нажмите для запуска"
-                Toast.makeText(this, "🔴 Бот остановлен", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // Режим: всё
-        binding.btnModeAll.setOnClickListener {
-            prefs.setMode(PreferenceManager.MODE_ALL)
-            updateModeButtons()
-        }
+        // Mode tabs
+        binding.btnModeAll.setOnClickListener { prefs.setMode(PreferenceManager.MODE_ALL); updateModeUI() }
+        binding.btnModeIntercity.setOnClickListener { prefs.setMode(PreferenceManager.MODE_INTERCITY); updateModeUI() }
+        binding.btnModeCarpool.setOnClickListener { prefs.setMode(PreferenceManager.MODE_CARPOOL); updateModeUI() }
 
-        // Режим: только межгород посылки
-        binding.btnModeIntercity.setOnClickListener {
-            prefs.setMode(PreferenceManager.MODE_INTERCITY)
-            updateModeButtons()
-        }
-
-        // Режим: попутчики (межгород пассажиры)
-        binding.btnModeCarpool.setOnClickListener {
-            prefs.setMode(PreferenceManager.MODE_CARPOOL)
-            updateModeButtons()
-        }
-
-        // Фильтр городов вкл/выкл
+        // City filter
         binding.switchCityFilter.setOnCheckedChangeListener { _, isChecked ->
             prefs.setCityFilterEnabled(isChecked)
-            binding.tvSelectedCities.alpha = if (isChecked) 1.0f else 0.4f
+            binding.tvSelectedCities.alpha = if (isChecked) 1.0f else 0.5f
             binding.btnEditCities.isEnabled = isChecked
         }
-
-        // Выбор городов
         binding.btnEditCities.setOnClickListener { showCityPickerDialog() }
 
-        // Фильтры цен
+        // Filters
         binding.btnEditFilters.setOnClickListener { showFiltersDialog() }
 
-        // Авто-звонок
+        // Auto call
         binding.switchAutoCall.isChecked = prefs.isAutoCallEnabled()
         binding.switchAutoCall.setOnCheckedChangeListener { _, isChecked ->
             prefs.setAutoCallEnabled(isChecked)
             if (isChecked) requestCallPermission()
         }
 
-        // Задержка звонка
+        // Call delay
         binding.btnCallDelayEdit.setOnClickListener { showCallDelayDialog() }
 
-        // Статистика
+        // Stats & permissions
         binding.btnStats.setOnClickListener { showStatsDialog() }
-
-        // Разрешения
         binding.btnSettings.setOnClickListener { showPermissionsDialog() }
         binding.btnGrantPermissions.setOnClickListener { requestAllPermissions() }
     }
 
-    // ==================== ВЫБОР ГОРОДОВ ====================
+    // ==================== FILTERS DIALOG ====================
+    private fun showFiltersDialog() {
+        val db = DialogFiltersBinding.inflate(LayoutInflater.from(this))
+
+        // Init values
+        db.etMinPrice.setText(prefs.getMinPrice().toInt().toString())
+        db.etFixedCityPrice.setText(
+            prefs.getFixedCityPrice().let { if (it > 0) it.toInt().toString() else "" }
+        )
+        db.etMinIntercityPrice.setText(prefs.getMinIntercityPrice().toInt().toString())
+        db.etFixedIntercityPrice.setText(
+            prefs.getFixedIntercityPrice().let { if (it > 0) it.toInt().toString() else "" }
+        )
+        db.etMinCarpoolPrice.setText(prefs.getMinCarpoolPrice().toInt().toString())
+        db.etFixedCarpoolPrice.setText(
+            prefs.getFixedCarpoolPrice().let { if (it > 0) it.toInt().toString() else "" }
+        )
+        db.etCallDelay.setText((prefs.getCallDelayMs() / 1000).toString())
+
+        // Tab state helpers
+        fun selectCityTab(mode: String) {
+            val off = mode == PreferenceManager.PRICE_OFF
+            val fixed = mode == PreferenceManager.PRICE_FIXED
+            styleTab(db.btnCityOff, off)
+            styleTab(db.btnCityMin, mode == PreferenceManager.PRICE_MIN)
+            styleTab(db.btnCityFixed, fixed)
+            db.layoutCityMin.visibility = if (mode == PreferenceManager.PRICE_MIN) View.VISIBLE else View.GONE
+            db.layoutCityFixed.visibility = if (fixed) View.VISIBLE else View.GONE
+        }
+        fun selectIntercityTab(mode: String) {
+            val fixed = mode == PreferenceManager.PRICE_FIXED
+            styleTab(db.btnIntercityOff, mode == PreferenceManager.PRICE_OFF)
+            styleTab(db.btnIntercityMin, mode == PreferenceManager.PRICE_MIN)
+            styleTab(db.btnIntercityFixed, fixed)
+            db.layoutIntercityMin.visibility = if (mode == PreferenceManager.PRICE_MIN) View.VISIBLE else View.GONE
+            db.layoutIntercityFixed.visibility = if (fixed) View.VISIBLE else View.GONE
+        }
+        fun selectCarpoolTab(mode: String) {
+            val fixed = mode == PreferenceManager.PRICE_FIXED
+            styleTab(db.btnCarpoolOff, mode == PreferenceManager.PRICE_OFF)
+            styleTab(db.btnCarpoolMin, mode == PreferenceManager.PRICE_MIN)
+            styleTab(db.btnCarpoolFixed, fixed)
+            db.layoutCarpoolMin.visibility = if (mode == PreferenceManager.PRICE_MIN) View.VISIBLE else View.GONE
+            db.layoutCarpoolFixed.visibility = if (fixed) View.VISIBLE else View.GONE
+        }
+
+        // Init tabs from saved state
+        selectCityTab(prefs.getCityPriceMode())
+        selectIntercityTab(prefs.getIntercityPriceMode())
+        selectCarpoolTab(prefs.getCarpoolPriceMode())
+
+        // Tab click listeners
+        var cityMode = prefs.getCityPriceMode()
+        var intercityMode = prefs.getIntercityPriceMode()
+        var carpoolMode = prefs.getCarpoolPriceMode()
+
+        db.btnCityOff.setOnClickListener { cityMode = PreferenceManager.PRICE_OFF; selectCityTab(cityMode) }
+        db.btnCityMin.setOnClickListener { cityMode = PreferenceManager.PRICE_MIN; selectCityTab(cityMode) }
+        db.btnCityFixed.setOnClickListener { cityMode = PreferenceManager.PRICE_FIXED; selectCityTab(cityMode) }
+
+        db.btnIntercityOff.setOnClickListener { intercityMode = PreferenceManager.PRICE_OFF; selectIntercityTab(intercityMode) }
+        db.btnIntercityMin.setOnClickListener { intercityMode = PreferenceManager.PRICE_MIN; selectIntercityTab(intercityMode) }
+        db.btnIntercityFixed.setOnClickListener { intercityMode = PreferenceManager.PRICE_FIXED; selectIntercityTab(intercityMode) }
+
+        db.btnCarpoolOff.setOnClickListener { carpoolMode = PreferenceManager.PRICE_OFF; selectCarpoolTab(carpoolMode) }
+        db.btnCarpoolMin.setOnClickListener { carpoolMode = PreferenceManager.PRICE_MIN; selectCarpoolTab(carpoolMode) }
+        db.btnCarpoolFixed.setOnClickListener { carpoolMode = PreferenceManager.PRICE_FIXED; selectCarpoolTab(carpoolMode) }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Фильтры цены")
+            .setView(db.root)
+            .setPositiveButton("Сохранить") { _, _ ->
+                prefs.setCityPriceMode(cityMode)
+                prefs.setMinPrice(db.etMinPrice.text.toString().toDoubleOrNull() ?: 2000.0)
+                prefs.setFixedCityPrice(db.etFixedCityPrice.text.toString().toDoubleOrNull() ?: 0.0)
+
+                prefs.setIntercityPriceMode(intercityMode)
+                prefs.setMinIntercityPrice(db.etMinIntercityPrice.text.toString().toDoubleOrNull() ?: 5000.0)
+                prefs.setFixedIntercityPrice(db.etFixedIntercityPrice.text.toString().toDoubleOrNull() ?: 0.0)
+
+                prefs.setCarpoolPriceMode(carpoolMode)
+                prefs.setMinCarpoolPrice(db.etMinCarpoolPrice.text.toString().toDoubleOrNull() ?: 5000.0)
+                prefs.setFixedCarpoolPrice(db.etFixedCarpoolPrice.text.toString().toDoubleOrNull() ?: 0.0)
+
+                val delaySec = db.etCallDelay.text.toString().toLongOrNull()?.coerceIn(0, 30) ?: 0
+                prefs.setCallDelayMs(delaySec * 1000)
+
+                loadUI()
+                Toast.makeText(this, "Сохранено", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun styleTab(view: TextView, selected: Boolean) {
+        if (selected) {
+            view.setBackgroundColor(0xFFFF6B00.toInt())
+            view.setTextColor(0xFFFFFFFF.toInt())
+            view.textSize = 12f
+        } else {
+            view.setBackgroundColor(0xFFF3F4F6.toInt())
+            view.setTextColor(0xFF8A8A8A.toInt())
+            view.textSize = 12f
+        }
+    }
+
+    // ==================== CITY PICKER ====================
     private fun showCityPickerDialog() {
         val cities = PreferenceManager.KZ_CITIES.toTypedArray()
         val allowed = prefs.getAllowedCities()
         val checked = BooleanArray(cities.size) { allowed.contains(cities[it]) }
 
         MaterialAlertDialogBuilder(this)
-            .setTitle("🏙️ Выберите города назначения")
-            .setMultiChoiceItems(cities, checked) { _, which, isChecked ->
-                checked[which] = isChecked
-            }
-            .setPositiveButton("💾 Сохранить") { _, _ ->
+            .setTitle("Города назначения")
+            .setMultiChoiceItems(cities, checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setPositiveButton("Сохранить") { _, _ ->
                 val selected = cities.filterIndexed { i, _ -> checked[i] }.toSet()
                 if (selected.isEmpty()) {
                     Toast.makeText(this, "Выберите хотя бы один город", Toast.LENGTH_SHORT).show()
@@ -157,48 +241,17 @@ class MainActivity : AppCompatActivity() {
                 }
                 prefs.setAllowedCities(selected)
                 updateCitiesUI()
-                Toast.makeText(this, "✅ Сохранено: ${selected.size} городов", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Сохранено: ${selected.size} городов", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Отмена", null)
-            .setNeutralButton("Все города") { _, _ ->
+            .setNeutralButton("Все") { _, _ ->
                 prefs.setAllowedCities(PreferenceManager.KZ_CITIES.toSet())
                 updateCitiesUI()
-                Toast.makeText(this, "Выбраны все города", Toast.LENGTH_SHORT).show()
             }
             .show()
     }
 
-    // ==================== ФИЛЬТРЫ ЦЕН ====================
-    private fun showFiltersDialog() {
-        val db = DialogFiltersBinding.inflate(LayoutInflater.from(this))
-
-        db.switchMinPrice.isChecked = prefs.isMinPriceEnabled()
-        db.etMinPrice.setText(prefs.getMinPrice().toInt().toString())
-        db.switchMinIntercityPrice.isChecked = prefs.isMinIntercityPriceEnabled()
-        db.etMinIntercityPrice.setText(prefs.getMinIntercityPrice().toInt().toString())
-        db.etCallDelay.setText((prefs.getCallDelayMs() / 1000).toString())
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle("💵 Минимальные цены")
-            .setView(db.root)
-            .setPositiveButton("💾 Сохранить") { _, _ ->
-                prefs.setMinPriceEnabled(db.switchMinPrice.isChecked)
-                prefs.setMinPrice(db.etMinPrice.text.toString().toDoubleOrNull() ?: 2000.0)
-                prefs.setMinIntercityPriceEnabled(db.switchMinIntercityPrice.isChecked)
-                prefs.setMinIntercityPrice(db.etMinIntercityPrice.text.toString().toDoubleOrNull() ?: 5000.0)
-                prefs.setMinCarpoolPriceEnabled(true)
-                // carpool price uses intercity price field or same field
-                prefs.setMinCarpoolPrice(db.etMinIntercityPrice.text.toString().toDoubleOrNull() ?: 5000.0)
-                val delaySec = db.etCallDelay.text.toString().toLongOrNull()?.coerceIn(0, 30) ?: 1
-                prefs.setCallDelayMs(delaySec * 1000)
-                loadUI()
-                Toast.makeText(this, "✅ Сохранено!", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
-    }
-
-    // ==================== ЗАДЕРЖКА ЗВОНКА ====================
+    // ==================== CALL DELAY ====================
     private fun showCallDelayDialog() {
         val opts = arrayOf("Мгновенно", "1 секунда", "2 секунды", "3 секунды", "5 секунд")
         val delays = longArrayOf(0L, 1000L, 2000L, 3000L, 5000L)
@@ -206,7 +259,7 @@ class MainActivity : AppCompatActivity() {
         var sel = delays.indexOfFirst { it == cur }.coerceAtLeast(0)
 
         MaterialAlertDialogBuilder(this)
-            .setTitle("⏱️ Задержка перед звонком")
+            .setTitle("Задержка перед звонком")
             .setSingleChoiceItems(opts, sel) { _, w -> sel = w }
             .setPositiveButton("Сохранить") { _, _ ->
                 prefs.setCallDelayMs(delays[sel])
@@ -216,18 +269,18 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ==================== СТАТИСТИКА ====================
+    // ==================== STATS ====================
     private fun showStatsDialog() {
-        val msg = "✅ Принято: ${prefs.getAcceptedCount()}\n" +
-                "❌ Пропущено: ${prefs.getMissedCount()}\n" +
-                "📞 Звонков: ${prefs.getCallCount()}\n" +
-                "💰 Заработок: ${prefs.getTotalEarnings().toInt()} ₸\n" +
-                "📈 Процент: ${"%.1f".format(prefs.getWinRate())}%"
+        val msg = "Принято: ${prefs.getAcceptedCount()}\n" +
+                "Пропущено: ${prefs.getMissedCount()}\n" +
+                "Звонков: ${prefs.getCallCount()}\n" +
+                "Заработок: ${prefs.getTotalEarnings().toInt()} ₸\n" +
+                "Конверсия: ${"%.1f".format(prefs.getWinRate())}%"
         MaterialAlertDialogBuilder(this)
-            .setTitle("📊 Статистика")
+            .setTitle("Статистика")
             .setMessage(msg)
             .setPositiveButton("ОК", null)
-            .setNeutralButton("🗑 Сбросить") { _, _ ->
+            .setNeutralButton("Сбросить") { _, _ ->
                 prefs.resetStats()
                 loadStats()
                 binding.tvLastOrder.text = "Заказов пока нет. Запустите бот и откройте inDrive."
@@ -236,28 +289,28 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ==================== РАЗРЕШЕНИЯ ====================
+    // ==================== PERMISSIONS ====================
     private fun showPermissionsDialog() {
         val hasOverlay = Settings.canDrawOverlays(this)
         val hasAccess = PermissionHelper.isAccessibilityEnabled(this)
         val hasCall = ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) ==
                 PackageManager.PERMISSION_GRANTED
         MaterialAlertDialogBuilder(this)
-            .setTitle("⚙️ Разрешения")
+            .setTitle("Разрешения")
             .setMessage(
-                "${if (hasAccess) "✅" else "❌"} Специальные возможности\n" +
-                "${if (hasOverlay) "✅" else "❌"} Наложение поверх приложений\n" +
-                "${if (hasCall) "✅" else "❌"} Разрешение на звонки"
+                "${if (hasAccess) "✓" else "✗"} Специальные возможности\n" +
+                "${if (hasOverlay) "✓" else "✗"} Наложение поверх приложений\n" +
+                "${if (hasCall) "✓" else "✗"} Звонки"
             )
             .setPositiveButton("Выдать") { _, _ -> requestAllPermissions() }
             .setNegativeButton("Закрыть", null)
             .show()
     }
 
-    // ==================== UI UPDATE ====================
+    // ==================== UI ====================
     private fun loadUI() {
         loadStats()
-        updateModeButtons()
+        updateModeUI()
         updateCitiesUI()
         updatePricesUI()
 
@@ -273,36 +326,45 @@ class MainActivity : AppCompatActivity() {
 
         val cityOn = prefs.isCityFilterEnabled()
         binding.switchCityFilter.isChecked = cityOn
-        binding.tvSelectedCities.alpha = if (cityOn) 1.0f else 0.4f
+        binding.tvSelectedCities.alpha = if (cityOn) 1.0f else 0.5f
         binding.btnEditCities.isEnabled = cityOn
         binding.switchAutoCall.isChecked = prefs.isAutoCallEnabled()
+
+        val last = prefs.getLastOrderInfo()
+        if (last.isNotEmpty()) binding.tvLastOrder.text = last
     }
 
     private fun loadStats() {
         binding.tvAccepted.text = prefs.getAcceptedCount().toString()
         binding.tvRejected.text = prefs.getMissedCount().toString()
         binding.tvCalls.text = prefs.getCallCount().toString()
-        binding.tvEarnings.text = "${prefs.getTotalEarnings().toInt()}₸"
-        val last = prefs.getLastOrderInfo()
-        if (last.isNotEmpty()) binding.tvLastOrder.text = last
+        val e = prefs.getTotalEarnings().toInt()
+        binding.tvEarnings.text = if (e >= 1000) "${e/1000}K₸" else "${e}₸"
     }
 
-    private fun updateModeButtons() {
+    private fun updateModeUI() {
         val mode = prefs.getMode()
-        binding.btnModeAll.backgroundTintList =
-            ContextCompat.getColorStateList(this, if (mode == PreferenceManager.MODE_ALL) R.color.primary else R.color.gray_500)
-        binding.btnModeIntercity.backgroundTintList =
-            ContextCompat.getColorStateList(this, if (mode == PreferenceManager.MODE_INTERCITY) R.color.primary else R.color.gray_500)
-        binding.btnModeCarpool.backgroundTintList =
-            ContextCompat.getColorStateList(this, if (mode == PreferenceManager.MODE_CARPOOL) R.color.primary else R.color.gray_500)
-        binding.tvModeDesc.text = when (mode) {
-            PreferenceManager.MODE_INTERCITY ->
-                "🚚 Только межгород посылки: игнорирует городские заказы."
-            PreferenceManager.MODE_CARPOOL ->
-                "🚗 Попутчики: бот смотрит вкладку «Попутки» и автоматически нажимает «Откликнуться»."
-            else ->
-                "📦 Принимаются все посылки: городская и межгород. Межгород — отдельная мин. цена."
+        val active = 0xFFFF6B00.toInt()
+        val inactive = 0xFFF3F4F6.toInt()
+        val activeText = 0xFFFFFFFF.toInt()
+        val inactiveText = 0xFF1A1A1A.toInt()
+
+        listOf(
+            binding.btnModeAll to (mode == PreferenceManager.MODE_ALL),
+            binding.btnModeIntercity to (mode == PreferenceManager.MODE_INTERCITY),
+            binding.btnModeCarpool to (mode == PreferenceManager.MODE_CARPOOL)
+        ).forEach { (btn, sel) ->
+            btn.setBackgroundColor(if (sel) active else inactive)
+            btn.setTextColor(if (sel) activeText else inactiveText)
         }
+
+        val desc = when (mode) {
+            PreferenceManager.MODE_INTERCITY -> "Только межгород посылки"
+            PreferenceManager.MODE_CARPOOL -> "Попутчики: кликает карточку в ленте"
+            else -> ""
+        }
+        binding.tvModeDesc.text = desc
+        binding.tvModeDesc.visibility = if (desc.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun updateCitiesUI() {
@@ -311,15 +373,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePricesUI() {
-        binding.tvMinPrice.text = "${prefs.getMinPrice().toInt()} ₸"
-        setFilterBadge(binding.tvMinPriceStatus, prefs.isMinPriceEnabled())
-        binding.tvMinIntercityPrice.text = "${prefs.getMinIntercityPrice().toInt()} ₸"
-        setFilterBadge(binding.tvMinIntercityStatus, prefs.isMinIntercityPriceEnabled())
-        binding.tvMinCarpoolPrice.text = "${prefs.getMinCarpoolPrice().toInt()} ₸"
-        setFilterBadge(binding.tvMinCarpoolStatus, prefs.isMinCarpoolPriceEnabled())
+        // City
+        val cityMode = prefs.getCityPriceMode()
+        binding.tvMinPrice.text = when (cityMode) {
+            PreferenceManager.PRICE_OFF -> "—"
+            PreferenceManager.PRICE_FIXED -> "${prefs.getFixedCityPrice().toInt()} ₸"
+            else -> "${prefs.getMinPrice().toInt()} ₸"
+        }
+        binding.tvCityPriceMode.text = when (cityMode) {
+            PreferenceManager.PRICE_OFF -> "фильтр выкл"
+            PreferenceManager.PRICE_FIXED -> "фикс. цена"
+            else -> "от мин."
+        }
+        setFilterBadge(binding.tvMinPriceStatus, cityMode != PreferenceManager.PRICE_OFF)
+
+        // Intercity
+        val intMode = prefs.getIntercityPriceMode()
+        binding.tvMinIntercityPrice.text = when (intMode) {
+            PreferenceManager.PRICE_OFF -> "—"
+            PreferenceManager.PRICE_FIXED -> "${prefs.getFixedIntercityPrice().toInt()} ₸"
+            else -> "${prefs.getMinIntercityPrice().toInt()} ₸"
+        }
+        binding.tvIntercityPriceMode.text = when (intMode) {
+            PreferenceManager.PRICE_OFF -> "фильтр выкл"
+            PreferenceManager.PRICE_FIXED -> "фикс. цена"
+            else -> "от мин."
+        }
+        setFilterBadge(binding.tvMinIntercityStatus, intMode != PreferenceManager.PRICE_OFF)
+
+        // Carpool
+        val carpoolMode = prefs.getCarpoolPriceMode()
+        binding.tvMinCarpoolPrice.text = when (carpoolMode) {
+            PreferenceManager.PRICE_OFF -> "—"
+            PreferenceManager.PRICE_FIXED -> "${prefs.getFixedCarpoolPrice().toInt()} ₸"
+            else -> "${prefs.getMinCarpoolPrice().toInt()} ₸"
+        }
+        binding.tvCarpoolPriceMode.text = when (carpoolMode) {
+            PreferenceManager.PRICE_OFF -> "фильтр выкл"
+            PreferenceManager.PRICE_FIXED -> "фикс. цена"
+            else -> "от мин."
+        }
+        setFilterBadge(binding.tvMinCarpoolStatus, carpoolMode != PreferenceManager.PRICE_OFF)
     }
 
-    private fun setFilterBadge(view: android.widget.TextView, enabled: Boolean) {
+    private fun setFilterBadge(view: TextView, enabled: Boolean) {
         view.text = if (enabled) "ВКЛ" else "ВЫКЛ"
         view.background = ContextCompat.getDrawable(
             this, if (enabled) R.drawable.badge_green else R.drawable.badge_gray
@@ -362,7 +459,7 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(req: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(req, perms, results)
         if (req == REQ_CALL && results.firstOrNull() != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "⚠️ Без этого разрешения авто-звонок не работает", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Без этого разрешения авто-звонок не работает", Toast.LENGTH_LONG).show()
             binding.switchAutoCall.isChecked = false
             prefs.setAutoCallEnabled(false)
         }

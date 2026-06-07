@@ -571,11 +571,37 @@ class InDriverAccessibilityService : AccessibilityService() {
         // Blacklist
         if (info.phone.isNotEmpty() && prefs.isBlacklisted(info.phone))
             return false to "Blacklist"
-        // Мин. цена
-        if (prefs.isMinPriceEnabled() && info.price > 0) {
-            val min = if (info.isIntercity) prefs.getMinIntercityPrice() else prefs.getMinPrice()
-            if (info.price < min)
-                return false to "Цена ${info.price.toInt()}₸ < ${min.toInt()}₸"
+        // Фильтр цены — зависит от режима (off/min/fixed)
+        if (info.price > 0) {
+            val priceMode: String
+            val minPrice: Double
+            val fixedPrice: Double
+            when {
+                info.orderType == "Попутчики" -> {
+                    priceMode = prefs.getCarpoolPriceMode()
+                    minPrice = prefs.getMinCarpoolPrice()
+                    fixedPrice = prefs.getFixedCarpoolPrice()
+                }
+                info.isIntercity -> {
+                    priceMode = prefs.getIntercityPriceMode()
+                    minPrice = prefs.getMinIntercityPrice()
+                    fixedPrice = prefs.getFixedIntercityPrice()
+                }
+                else -> {
+                    priceMode = prefs.getCityPriceMode()
+                    minPrice = prefs.getMinPrice()
+                    fixedPrice = prefs.getFixedCityPrice()
+                }
+            }
+            when (priceMode) {
+                PreferenceManager.PRICE_OFF -> return false to "Фильтр выключен"
+                PreferenceManager.PRICE_MIN ->
+                    if (info.price < minPrice)
+                        return false to "Цена ${info.price.toInt()}₸ < ${minPrice.toInt()}₸"
+                PreferenceManager.PRICE_FIXED ->
+                    if (fixedPrice > 0 && Math.abs(info.price - fixedPrice) > fixedPrice * 0.05)
+                        return false to "Цена ${info.price.toInt()}₸ != ${fixedPrice.toInt()}₸"
+            }
         }
         // Города назначения
         if (prefs.isCityFilterEnabled() && info.cityTo.isNotEmpty()) {

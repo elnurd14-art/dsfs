@@ -4,14 +4,15 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_primary">
+    android:background="@color/bg_primary"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- ===== ШАПКА ===== -->
+        <!-- HEADER -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -35,75 +36,204 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📦 inDrive Бот"
+                        android:text="inDrive Bot"
                         android:textColor="@color/white"
                         android:textSize="22sp"
-                        android:textStyle="bold"/>
+                        android:textStyle="bold"
+                        android:letterSpacing="0.01"/>
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Казахстан • Посылки • Попутчики"
+                        android:text="Казахстан"
                         android:textColor="#FFE0B2"
                         android:textSize="12sp"/>
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Переключатель бота -->
-            <androidx.cardview.widget.CardView
+            <!-- BOT TOGGLE -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="60dp"
                 android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#BF5000"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp">
+                android:background="@drawable/bg_status_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="14dp">
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="14dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:id="@+id/tvStatusLabel"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🔴 БОТ ОСТАНОВЛЕН"
-                            android:textColor="@color/white"
-                            android:textSize="17sp"
-                            android:textStyle="bold"/>
-                        <TextView
-                            android:id="@+id/tvStatusDesc"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Нажмите для запуска"
-                            android:textColor="#FFD0A0"
-                            android:textSize="12sp"/>
-                    </LinearLayout>
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchAutoAccept"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/tvStatusLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        app:thumbTint="@color/white"
-                        app:trackTint="#FF6B00"/>
+                        android:text="БОТ ОСТАНОВЛЕН"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        android:textStyle="bold"/>
+                    <TextView
+                        android:id="@+id/tvStatusDesc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="Нажмите для запуска"
+                        android:textColor="#FFE0B2"
+                        android:textSize="11sp"/>
+                </LinearLayout>
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchAutoAccept"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:thumbTint="#FFFFFF"
+                    app:trackTint="#FFFFFF40"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- PERMISSION WARNING -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardPermission"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="16dp"
+            android:visibility="gone"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="#FFF3E0">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Требуются разрешения"
+                    android:textColor="#E65100"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Для работы бота необходимы специальные возможности и наложение поверх приложений"
+                    android:textColor="#BF360C"
+                    android:textSize="12sp"/>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnGrantPermissions"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="@color/primary"
+                    android:text="Выдать разрешения"
+                    android:textAllCaps="false"
+                    android:textSize="13sp"
+                    app:cornerRadius="8dp"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- STATS ROW -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:weightSum="4">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/bg_white">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="10dp" android:gravity="center">
+                    <TextView android:id="@+id/tvAccepted" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="0"
+                        android:textColor="@color/green_500" android:textSize="22sp" android:textStyle="bold"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Принято" android:textColor="@color/text_secondary" android:textSize="10sp"
+                        android:layout_marginTop="2dp"/>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <androidx.cardview.widget.CardView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/bg_white">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="10dp" android:gravity="center">
+                    <TextView android:id="@+id/tvRejected" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="0"
+                        android:textColor="@color/red_500" android:textSize="22sp" android:textStyle="bold"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Пропущено" android:textColor="@color/text_secondary" android:textSize="10sp"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/bg_white">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="10dp" android:gravity="center">
+                    <TextView android:id="@+id/tvCalls" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="0"
+                        android:textColor="@color/blue_500" android:textSize="22sp" android:textStyle="bold"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Звонки" android:textColor="@color/text_secondary" android:textSize="10sp"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/bg_white">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="10dp" android:gravity="center">
+                    <TextView android:id="@+id/tvEarnings" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="0"
+                        android:textColor="@color/primary" android:textSize="18sp" android:textStyle="bold"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Заработок" android:textColor="@color/text_secondary" android:textSize="10sp"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
         </LinearLayout>
 
-        <!-- ===== РЕЖИМ: ГОРОД / МЕЖГОРОД ===== -->
+        <!-- MODE CARD -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="12dp"
-            app:cardBackgroundColor="@color/bg_white"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
             app:cardCornerRadius="16dp"
-            app:cardElevation="3dp">
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/bg_white">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -113,170 +243,78 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🗺️ Режим работы"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="12dp"/>
+                    android:text="Режим работы"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="10dp"/>
 
-                <!-- Кнопки выбора режима — 3 варианта -->
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_tab_container"
                     android:orientation="horizontal"
+                    android:padding="3dp"
                     android:weightSum="3">
-
-                    <com.google.android.material.button.MaterialButton
+                    <!-- corners via bg -->
+                    <TextView
                         android:id="@+id/btnModeAll"
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:layout_marginEnd="3dp"
-                        android:backgroundTint="@color/primary"
-                        android:text="📦 Город"
-                        android:textAllCaps="false"
-                        android:textColor="@color/white"
-                        android:textSize="11sp"
-                        app:cornerRadius="10dp"/>
-
-                    <com.google.android.material.button.MaterialButton
+                        android:gravity="center"
+                        android:text="Город"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        android:textStyle="normal"
+                        android:background="@drawable/bg_pill_unselected"/>
+                    <TextView
                         android:id="@+id/btnModeIntercity"
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
                         android:layout_marginStart="3dp"
-                        android:layout_marginEnd="3dp"
-                        android:backgroundTint="@color/gray_500"
-                        android:text="🚚 Межгород"
-                        android:textAllCaps="false"
-                        android:textColor="@color/white"
-                        android:textSize="11sp"
-                        app:cornerRadius="10dp"/>
-
-                    <com.google.android.material.button.MaterialButton
+                        android:gravity="center"
+                        android:text="Межгород"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        android:background="@drawable/bg_pill_unselected"/>
+                    <TextView
                         android:id="@+id/btnModeCarpool"
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
                         android:layout_marginStart="3dp"
-                        android:backgroundTint="@color/gray_500"
-                        android:text="🚗 Попутчики"
-                        android:textAllCaps="false"
-                        android:textColor="@color/white"
-                        android:textSize="11sp"
-                        app:cornerRadius="10dp"/>
-
+                        android:gravity="center"
+                        android:text="Попутчики"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        android:background="@drawable/bg_pill_unselected"/>
                 </LinearLayout>
 
-                <!-- Пояснение -->
                 <TextView
                     android:id="@+id/tvModeDesc"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:background="@drawable/badge_info_bg"
-                    android:padding="10dp"
-                    android:text="ℹ️ Принимаются все посылки: городская доставка и межгород. Межгород — приоритет (отдельная мин. цена)."
-                    android:textColor="#E65100"
-                    android:textSize="12sp"/>
-
+                    android:text=""
+                    android:textColor="@color/primary"
+                    android:textSize="12sp"
+                    android:visibility="gone"/>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ===== СТАТИСТИКА ===== -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="8dp"
-            android:weightSum="4">
-
-            <androidx.cardview.widget.CardView
-                android:layout_width="0dp"
-                android:layout_height="75dp"
-                android:layout_weight="1"
-                android:layout_margin="3dp"
-                app:cardBackgroundColor="@color/bg_white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-                    android:gravity="center" android:orientation="vertical">
-                    <TextView android:id="@+id/tvAccepted" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="0"
-                        android:textColor="@color/accent_green" android:textSize="22sp" android:textStyle="bold"/>
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="✅ Принято" android:textColor="@color/text_secondary" android:textSize="10sp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <androidx.cardview.widget.CardView
-                android:layout_width="0dp"
-                android:layout_height="75dp"
-                android:layout_weight="1"
-                android:layout_margin="3dp"
-                app:cardBackgroundColor="@color/bg_white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-                    android:gravity="center" android:orientation="vertical">
-                    <TextView android:id="@+id/tvRejected" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="0"
-                        android:textColor="@color/accent_red" android:textSize="22sp" android:textStyle="bold"/>
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="❌ Пропущено" android:textColor="@color/text_secondary" android:textSize="10sp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <androidx.cardview.widget.CardView
-                android:layout_width="0dp"
-                android:layout_height="75dp"
-                android:layout_weight="1"
-                android:layout_margin="3dp"
-                app:cardBackgroundColor="@color/bg_white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-                    android:gravity="center" android:orientation="vertical">
-                    <TextView android:id="@+id/tvCalls" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="0"
-                        android:textColor="@color/accent_blue" android:textSize="22sp" android:textStyle="bold"/>
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="📞 Звонки" android:textColor="@color/text_secondary" android:textSize="10sp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <androidx.cardview.widget.CardView
-                android:layout_width="0dp"
-                android:layout_height="75dp"
-                android:layout_weight="1"
-                android:layout_margin="3dp"
-                app:cardBackgroundColor="@color/bg_white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-                    android:gravity="center" android:orientation="vertical">
-                    <TextView android:id="@+id/tvEarnings" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="0₸"
-                        android:textColor="@color/primary" android:textSize="17sp" android:textStyle="bold"/>
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="💰 Заработок" android:textColor="@color/text_secondary" android:textSize="10sp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-        </LinearLayout>
-
-        <!-- ===== ФИЛЬТРЫ ЦЕН ===== -->
+        <!-- FILTERS CARD -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/bg_white"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
             app:cardCornerRadius="16dp"
-            app:cardElevation="3dp">
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/bg_white">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -284,94 +322,121 @@
                 android:padding="16dp">
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:gravity="center_vertical" android:orientation="horizontal">
+                    android:gravity="center_vertical" android:orientation="horizontal"
+                    android:layout_marginBottom="14dp">
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="💵 Минимальная цена"
-                        android:textColor="@color/text_primary" android:textSize="15sp" android:textStyle="bold"/>
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnEditFilters"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content" android:layout_height="36dp"
-                        android:text="Изменить" android:textColor="@color/primary" android:textSize="13sp"/>
+                        android:layout_weight="1"
+                        android:text="Фильтры цены"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.08"/>
+                    <TextView android:id="@+id/btnEditFilters"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Изменить"
+                        android:textColor="@color/primary"
+                        android:textSize="13sp"
+                        android:padding="4dp"/>
                 </LinearLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@color/divider" android:layout_marginTop="8dp" android:layout_marginBottom="12dp"/>
-
-                <!-- Городская доставка -->
+                <!-- Город -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:gravity="center_vertical" android:orientation="horizontal" android:layout_marginBottom="10dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="📦" android:textSize="22sp" android:layout_marginEnd="10dp"/>
+                    android:gravity="center_vertical" android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Городская доставка" android:textColor="@color/text_secondary" android:textSize="12sp"/>
-                        <TextView android:id="@+id/tvMinPrice" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="2 000 ₸"
-                            android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold"/>
+                            android:text="Городская доставка"
+                            android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                        <TextView android:id="@+id/tvMinPrice"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="2 000 ₸"
+                            android:textColor="@color/text_primary" android:textSize="16sp"
+                            android:textStyle="bold" android:layout_marginTop="1dp"/>
+                        <TextView android:id="@+id/tvCityPriceMode"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="от мин."
+                            android:textColor="@color/text_secondary" android:textSize="11sp"/>
                     </LinearLayout>
-                    <TextView android:id="@+id/tvMinPriceStatus" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:background="@drawable/badge_green"
-                        android:paddingStart="8dp" android:paddingEnd="8dp"
-                        android:paddingTop="3dp" android:paddingBottom="3dp"
-                        android:text="ВКЛ" android:textColor="@color/white" android:textSize="11sp" android:textStyle="bold"/>
+                    <TextView android:id="@+id/tvMinPriceStatus"
+                        android:layout_width="44dp" android:layout_height="22dp"
+                        android:gravity="center"
+                        android:background="@drawable/badge_green"
+                        android:text="ВКЛ"
+                        android:textColor="@color/white" android:textSize="10sp" android:textStyle="bold"/>
                 </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/divider" android:layout_marginBottom="12dp"/>
 
                 <!-- Межгород посылки -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:gravity="center_vertical" android:orientation="horizontal"
-                    android:layout_marginBottom="10dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="🚚" android:textSize="22sp" android:layout_marginEnd="10dp"/>
+                    android:layout_marginBottom="12dp">
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Межгородская доставка" android:textColor="@color/text_secondary" android:textSize="12sp"/>
-                        <TextView android:id="@+id/tvMinIntercityPrice" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="5 000 ₸"
-                            android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold"/>
+                            android:text="Межгород посылки"
+                            android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                        <TextView android:id="@+id/tvMinIntercityPrice"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="5 000 ₸"
+                            android:textColor="@color/text_primary" android:textSize="16sp"
+                            android:textStyle="bold" android:layout_marginTop="1dp"/>
+                        <TextView android:id="@+id/tvIntercityPriceMode"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="от мин."
+                            android:textColor="@color/text_secondary" android:textSize="11sp"/>
                     </LinearLayout>
-                    <TextView android:id="@+id/tvMinIntercityStatus" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:background="@drawable/badge_green"
-                        android:paddingStart="8dp" android:paddingEnd="8dp"
-                        android:paddingTop="3dp" android:paddingBottom="3dp"
-                        android:text="ВКЛ" android:textColor="@color/white" android:textSize="11sp" android:textStyle="bold"/>
+                    <TextView android:id="@+id/tvMinIntercityStatus"
+                        android:layout_width="44dp" android:layout_height="22dp"
+                        android:gravity="center"
+                        android:background="@drawable/badge_green"
+                        android:text="ВКЛ"
+                        android:textColor="@color/white" android:textSize="10sp" android:textStyle="bold"/>
                 </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/divider" android:layout_marginBottom="12dp"/>
 
                 <!-- Попутчики -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:gravity="center_vertical" android:orientation="horizontal">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="🚗" android:textSize="22sp" android:layout_marginEnd="10dp"/>
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Межгород попутчики" android:textColor="@color/text_secondary" android:textSize="12sp"/>
-                        <TextView android:id="@+id/tvMinCarpoolPrice" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="5 000 ₸"
-                            android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold"/>
+                            android:text="Попутчики"
+                            android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                        <TextView android:id="@+id/tvMinCarpoolPrice"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="5 000 ₸"
+                            android:textColor="@color/text_primary" android:textSize="16sp"
+                            android:textStyle="bold" android:layout_marginTop="1dp"/>
+                        <TextView android:id="@+id/tvCarpoolPriceMode"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="от мин."
+                            android:textColor="@color/text_secondary" android:textSize="11sp"/>
                     </LinearLayout>
-                    <TextView android:id="@+id/tvMinCarpoolStatus" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:background="@drawable/badge_green"
-                        android:paddingStart="8dp" android:paddingEnd="8dp"
-                        android:paddingTop="3dp" android:paddingBottom="3dp"
-                        android:text="ВКЛ" android:textColor="@color/white" android:textSize="11sp" android:textStyle="bold"/>
+                    <TextView android:id="@+id/tvMinCarpoolStatus"
+                        android:layout_width="44dp" android:layout_height="22dp"
+                        android:gravity="center"
+                        android:background="@drawable/badge_green"
+                        android:text="ВКЛ"
+                        android:textColor="@color/white" android:textSize="10sp" android:textStyle="bold"/>
                 </LinearLayout>
-
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ===== ГОРОДА НАЗНАЧЕНИЯ ===== -->
+        <!-- CITIES CARD -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/bg_white"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
             app:cardCornerRadius="16dp"
-            app:cardElevation="3dp">
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/bg_white">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -383,49 +448,57 @@
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="🏙️ Города назначения" android:textColor="@color/text_primary"
-                            android:textSize="15sp" android:textStyle="bold"/>
+                            android:text="Города назначения"
+                            android:textColor="@color/text_primary" android:textSize="15sp"
+                            android:textStyle="bold"/>
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Принимать только заказы в выбранные города"
+                            android:text="Принимать только в выбранные города"
                             android:textColor="@color/text_secondary" android:textSize="12sp"/>
                     </LinearLayout>
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchCityFilter"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        app:thumbTint="@color/white" app:trackTint="@color/accent_green"/>
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:thumbTint="#FFFFFF"
+                        app:trackTint="@color/primary"/>
                 </LinearLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@color/divider" android:layout_marginTop="10dp" android:layout_marginBottom="10dp"/>
-
                 <TextView android:id="@+id/tvSelectedCities"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="Алматы, Астана, Шымкент, Актобе, Тараз"
-                    android:textColor="@color/text_primary" android:textSize="13sp"
-                    android:layout_marginBottom="10dp"/>
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Не выбрано"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:alpha="0.5"/>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnEditCities"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="match_parent" android:layout_height="44dp"
-                    android:text="✏️ Выбрать города"
-                    android:textAllCaps="false" android:textColor="@color/primary"
-                    android:textSize="14sp" app:strokeColor="@color/primary" app:cornerRadius="10dp"/>
-
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="@color/bg_primary"
+                    android:text="Выбрать города"
+                    android:textAllCaps="false"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    app:cornerRadius="10dp"
+                    app:strokeColor="@color/primary"
+                    app:strokeWidth="1dp"/>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ===== АВТО-ЗВОНОК ===== -->
+        <!-- AUTO CALL CARD -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/bg_white"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
             app:cardCornerRadius="16dp"
-            app:cardElevation="3dp">
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/bg_white">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -437,133 +510,106 @@
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="📞 Авто-звонок клиенту"
-                            android:textColor="@color/text_primary" android:textSize="15sp" android:textStyle="bold"/>
+                            android:text="Авто-звонок"
+                            android:textColor="@color/text_primary" android:textSize="15sp"
+                            android:textStyle="bold"/>
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Автоматически звонит как только подходит заказ"
+                            android:text="Звонит автоматически при подходящем заказе"
                             android:textColor="@color/text_secondary" android:textSize="12sp"/>
                     </LinearLayout>
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchAutoCall"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:checked="true"
-                        app:thumbTint="@color/white" app:trackTint="@color/accent_green"/>
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:thumbTint="#FFFFFF"
+                        app:trackTint="@color/primary"/>
                 </LinearLayout>
 
                 <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@color/divider" android:layout_marginTop="10dp" android:layout_marginBottom="10dp"/>
+                    android:background="@color/divider" android:layout_marginTop="14dp"
+                    android:layout_marginBottom="14dp"/>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:gravity="center_vertical" android:orientation="horizontal">
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="⏱️ Задержка перед звонком"
+                            android:text="Задержка перед звонком"
                             android:textColor="@color/text_secondary" android:textSize="12sp"/>
                         <TextView android:id="@+id/tvCallDelay"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="1 секунда" android:textColor="@color/text_primary"
-                            android:textSize="14sp" android:textStyle="bold"/>
+                            android:text="Мгновенно"
+                            android:textColor="@color/text_primary" android:textSize="15sp"
+                            android:textStyle="bold" android:layout_marginTop="2dp"/>
                     </LinearLayout>
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCallDelayEdit"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content" android:layout_height="36dp"
-                        android:text="Изменить" android:textColor="@color/primary"
-                        android:textSize="12sp" app:strokeColor="@color/primary" app:cornerRadius="8dp"/>
+                    <TextView android:id="@+id/btnCallDelayEdit"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Изменить"
+                        android:textColor="@color/primary"
+                        android:textSize="13sp"
+                        android:padding="4dp"/>
                 </LinearLayout>
-
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ===== ПОСЛЕДНИЙ ЗАКАЗ ===== -->
+        <!-- LAST ORDER CARD -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/bg_white"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
             app:cardCornerRadius="16dp"
-            app:cardElevation="3dp">
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/bg_white">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="🕐 Последний заказ"
-                    android:textColor="@color/text_primary" android:textSize="15sp" android:textStyle="bold"/>
-                <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@color/divider" android:layout_marginTop="8dp" android:layout_marginBottom="10dp"/>
-                <TextView android:id="@+id/tvLastOrder"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="Заказов пока нет. Запустите бот и откройте inDrive."
-                    android:textColor="@color/text_secondary" android:textSize="13sp"
-                    android:lineSpacingMultiplier="1.4"/>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- ===== БЛОК РАЗРЕШЕНИЙ ===== -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardPermission"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone"
-            app:cardBackgroundColor="#FFF3E0"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="⚠️ Необходимы разрешения"
-                    android:textColor="#E65100" android:textSize="15sp" android:textStyle="bold"/>
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="1. Специальные возможности — чтение экрана inDrive\n2. Наложение поверх приложений\n3. Разрешение на звонки"
-                    android:textColor="#BF360C" android:textSize="13sp" android:lineSpacingMultiplier="1.4"/>
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnGrantPermissions"
+                    android:text="Последний заказ"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="8dp"/>
+                <TextView
+                    android:id="@+id/tvLastOrder"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/primary"
-                    android:text="Выдать разрешения"
-                    android:textAllCaps="false"
-                    android:textColor="@color/white"
-                    android:textSize="15sp"
-                    app:cornerRadius="10dp"/>
+                    android:layout_height="wrap_content"
+                    android:text="Заказов пока нет. Запустите бот и откройте inDrive."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:lineSpacingExtra="3dp"/>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ===== НИЖНИЕ КНОПКИ ===== -->
+        <!-- BOTTOM BUTTONS -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="24dp"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="24dp"
             android:weightSum="2">
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnStats"
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
                 android:layout_marginEnd="6dp"
-                android:backgroundTint="@color/accent_blue"
-                android:text="📊 Статистика"
+                android:backgroundTint="@color/blue_500"
+                android:text="Статистика"
                 android:textAllCaps="false"
                 android:textColor="@color/white"
                 android:textSize="14sp"
                 app:cornerRadius="12dp"/>
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSettings"
                 android:layout_width="0dp"
@@ -571,7 +617,7 @@
                 android:layout_weight="1"
                 android:layout_marginStart="6dp"
                 android:backgroundTint="@color/gray_500"
-                android:text="⚙️ Разрешения"
+                android:text="Разрешения"
                 android:textAllCaps="false"
                 android:textColor="@color/white"
                 android:textSize="14sp"

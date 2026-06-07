@@ -3,39 +3,39 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- ALI-стиль: яркие градиентные цвета -->
     <color name="primary">#FF6B00</color>
     <color name="primary_dark">#CC5500</color>
-    <color name="primary_light">#FF8C33</color>
-    <color name="accent_green">#00C853</color>
-    <color name="accent_green_dark">#009624</color>
-    <color name="accent_red">#FF1744</color>
-    <color name="accent_blue">#2979FF</color>
-    <color name="accent_yellow">#FFD600</color>
-    <color name="accent_purple">#D500F9</color>
+    <color name="primary_light">#FFF3E0</color>
 
-    <!-- Фон -->
-    <color name="bg_primary">#F5F5F5</color>
+    <color name="bg_primary">#F7F8FA</color>
     <color name="bg_white">#FFFFFF</color>
     <color name="bg_card">#FFFFFF</color>
-    <color name="bg_dark">#1A1A2E</color>
 
-    <!-- Текст -->
-    <color name="text_primary">#212121</color>
-    <color name="text_secondary">#757575</color>
+    <color name="text_primary">#1A1A1A</color>
+    <color name="text_secondary">#8A8A8A</color>
     <color name="text_white">#FFFFFF</color>
     <color name="text_hint">#BDBDBD</color>
 
-    <!-- Алиасы для старого кода -->
-    <color name="green_500">#00C853</color>
-    <color name="red_500">#FF1744</color>
+    <color name="green_500">#22C55E</color>
+    <color name="green_bg">#F0FDF4</color>
+    <color name="red_500">#EF4444</color>
+    <color name="red_bg">#FEF2F2</color>
+    <color name="blue_500">#3B82F6</color>
+    <color name="blue_bg">#EFF6FF</color>
     <color name="orange_500">#FF6B00</color>
-    <color name="blue_500">#2979FF</color>
+    <color name="gray_100">#F3F4F6</color>
+    <color name="gray_200">#E5E7EB</color>
     <color name="gray_500">#9E9E9E</color>
     <color name="gray_900">#E0E0E0</color>
 
-    <!-- Статус карточки -->
+    <color name="divider">#F0F0F0</color>
     <color name="status_active_bg">#E8F5E9</color>
     <color name="status_inactive_bg">#FFEBEE</color>
-    <color name="divider">#EEEEEE</color>
+    <color name="accent_green">#22C55E</color>
+    <color name="accent_green_dark">#16A34A</color>
+    <color name="accent_red">#EF4444</color>
+    <color name="accent_blue">#3B82F6</color>
+    <color name="accent_yellow">#F59E0B</color>
+    <color name="accent_purple">#8B5CF6</color>
+    <color name="bg_dark">#1A1A2E</color>
 </resources>

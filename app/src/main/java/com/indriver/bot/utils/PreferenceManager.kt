@@ -12,16 +12,39 @@ class PreferenceManager(context: Context) {
     fun getMode(): String = prefs.getString("mode", MODE_ALL) ?: MODE_ALL
     fun setMode(v: String) = prefs.edit().putString("mode", v).apply()
 
-    // ===== ФИЛЬТРЫ ЦЕНЫ =====
-    fun isMinPriceEnabled(): Boolean = prefs.getBoolean("filter_min_price_on", true)
-    fun setMinPriceEnabled(v: Boolean) = prefs.edit().putBoolean("filter_min_price_on", v).apply()
+    // ===== ФИЛЬТР ГОРОДСКАЯ ДОСТАВКА =====
+    // mode: "off" | "min" | "fixed"
+    fun getCityPriceMode(): String = prefs.getString("city_price_mode", PRICE_MIN) ?: PRICE_MIN
+    fun setCityPriceMode(v: String) = prefs.edit().putString("city_price_mode", v).apply()
     fun getMinPrice(): Double = prefs.getFloat("filter_min_price", 2000f).toDouble()
     fun setMinPrice(v: Double) = prefs.edit().putFloat("filter_min_price", v.toFloat()).apply()
+    fun getFixedCityPrice(): Double = prefs.getFloat("filter_fixed_city_price", 0f).toDouble()
+    fun setFixedCityPrice(v: Double) = prefs.edit().putFloat("filter_fixed_city_price", v.toFloat()).apply()
+    // legacy compat
+    fun isMinPriceEnabled(): Boolean = getCityPriceMode() != PRICE_OFF
+    fun setMinPriceEnabled(v: Boolean) { if (!v) setCityPriceMode(PRICE_OFF) }
 
-    fun isMinIntercityPriceEnabled(): Boolean = prefs.getBoolean("filter_min_intercity_price_on", true)
-    fun setMinIntercityPriceEnabled(v: Boolean) = prefs.edit().putBoolean("filter_min_intercity_price_on", v).apply()
+    // ===== ФИЛЬТР МЕЖГОРОД ПОСЫЛКИ =====
+    fun getIntercityPriceMode(): String = prefs.getString("intercity_price_mode", PRICE_MIN) ?: PRICE_MIN
+    fun setIntercityPriceMode(v: String) = prefs.edit().putString("intercity_price_mode", v).apply()
     fun getMinIntercityPrice(): Double = prefs.getFloat("filter_min_intercity_price", 5000f).toDouble()
     fun setMinIntercityPrice(v: Double) = prefs.edit().putFloat("filter_min_intercity_price", v.toFloat()).apply()
+    fun getFixedIntercityPrice(): Double = prefs.getFloat("filter_fixed_intercity_price", 0f).toDouble()
+    fun setFixedIntercityPrice(v: Double) = prefs.edit().putFloat("filter_fixed_intercity_price", v.toFloat()).apply()
+    // legacy compat
+    fun isMinIntercityPriceEnabled(): Boolean = getIntercityPriceMode() != PRICE_OFF
+    fun setMinIntercityPriceEnabled(v: Boolean) { if (!v) setIntercityPriceMode(PRICE_OFF) }
+
+    // ===== ФИЛЬТР ПОПУТЧИКИ =====
+    fun getCarpoolPriceMode(): String = prefs.getString("carpool_price_mode", PRICE_MIN) ?: PRICE_MIN
+    fun setCarpoolPriceMode(v: String) = prefs.edit().putString("carpool_price_mode", v).apply()
+    fun getMinCarpoolPrice(): Double = prefs.getFloat("filter_min_carpool_price", 5000f).toDouble()
+    fun setMinCarpoolPrice(v: Double) = prefs.edit().putFloat("filter_min_carpool_price", v.toFloat()).apply()
+    fun getFixedCarpoolPrice(): Double = prefs.getFloat("filter_fixed_carpool_price", 0f).toDouble()
+    fun setFixedCarpoolPrice(v: Double) = prefs.edit().putFloat("filter_fixed_carpool_price", v.toFloat()).apply()
+    // legacy compat
+    fun isMinCarpoolPriceEnabled(): Boolean = getCarpoolPriceMode() != PRICE_OFF
+    fun setMinCarpoolPriceEnabled(v: Boolean) { if (!v) setCarpoolPriceMode(PRICE_OFF) }
 
     // ===== ГОРОДА НАЗНАЧЕНИЯ =====
     fun getAllowedCities(): Set<String> =
@@ -34,13 +57,13 @@ class PreferenceManager(context: Context) {
     // ===== АВТО-ЗВОНОК =====
     fun isAutoCallEnabled(): Boolean = prefs.getBoolean("auto_call_enabled", true)
     fun setAutoCallEnabled(v: Boolean) = prefs.edit().putBoolean("auto_call_enabled", v).apply()
-    fun getCallDelayMs(): Long = prefs.getLong("call_delay_ms", 1000L)
+    fun getCallDelayMs(): Long = prefs.getLong("call_delay_ms", 0L)
     fun setCallDelayMs(v: Long) = prefs.edit().putLong("call_delay_ms", v).apply()
 
     // ===== РАБОЧЕЕ ВРЕМЯ =====
     fun isWorkHoursEnabled(): Boolean = prefs.getBoolean("work_hours_on", false)
     fun setWorkHoursEnabled(v: Boolean) = prefs.edit().putBoolean("work_hours_on", v).apply()
-    fun getWorkStart(): Int = prefs.getInt("work_start", 8)   // час
+    fun getWorkStart(): Int = prefs.getInt("work_start", 8)
     fun setWorkStart(v: Int) = prefs.edit().putInt("work_start", v).apply()
     fun getWorkEnd(): Int = prefs.getInt("work_end", 22)
     fun setWorkEnd(v: Int) = prefs.edit().putInt("work_end", v).apply()
@@ -66,7 +89,7 @@ class PreferenceManager(context: Context) {
         .putInt("stat_calls", 0).putFloat("stat_earnings", 0f)
         .putString("last_order_info", "").apply()
 
-    // ===== BLACKLIST НОМЕРОВ =====
+    // ===== BLACKLIST =====
     fun getBlacklist(): Set<String> =
         prefs.getStringSet("blacklist", emptySet()) ?: emptySet()
     fun addToBlacklist(phone: String) {
@@ -82,16 +105,14 @@ class PreferenceManager(context: Context) {
     fun isBlacklisted(phone: String): Boolean =
         getBlacklist().contains(phone.replace("[^0-9]".toRegex(), ""))
 
-    // ===== ПОПУТЧИКИ =====
-    fun isMinCarpoolPriceEnabled(): Boolean = prefs.getBoolean("filter_min_carpool_price_on", true)
-    fun setMinCarpoolPriceEnabled(v: Boolean) = prefs.edit().putBoolean("filter_min_carpool_price_on", v).apply()
-    fun getMinCarpoolPrice(): Double = prefs.getFloat("filter_min_carpool_price", 5000f).toDouble()
-    fun setMinCarpoolPrice(v: Double) = prefs.edit().putFloat("filter_min_carpool_price", v.toFloat()).apply()
-
     companion object {
-        const val MODE_ALL = "all"           // городская + межгород посылки
-        const val MODE_INTERCITY = "intercity" // только межгород посылки
-        const val MODE_CARPOOL = "carpool"   // только межгород попутчики
+        const val MODE_ALL = "all"
+        const val MODE_INTERCITY = "intercity"
+        const val MODE_CARPOOL = "carpool"
+
+        const val PRICE_OFF = "off"
+        const val PRICE_MIN = "min"
+        const val PRICE_FIXED = "fixed"
 
         val KZ_CITIES = listOf(
             "Алматы", "Астана", "Шымкент", "Актобе", "Тараз",
@@ -99,12 +120,9 @@ class PreferenceManager(context: Context) {
             "Костанай", "Кызылорда", "Уральск", "Петропавловск",
             "Актау", "Темиртау", "Туркестан", "Кокшетау",
             "Талдыкорган", "Экибастуз", "Рудный", "Жезказган",
-            "Житикара",
-            "Балхаш", "Сатпаев", "Кентау", "Жанаозен"
+            "Житикара", "Балхаш", "Сатпаев", "Кентау", "Жанаозен"
         ).sorted()
 
-        val DEFAULT_CITIES = setOf(
-            "Алматы", "Астана", "Шымкент", "Актобе", "Тараз"
-        )
+        val DEFAULT_CITIES = setOf("Алматы", "Астана", "Шымкент", "Актобе", "Тараз")
     }
 }
