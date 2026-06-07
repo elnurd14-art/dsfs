@@ -5,57 +5,99 @@ import android.content.SharedPreferences
 
 class PreferenceManager(context: Context) {
 
-    private val sharedPreferences: SharedPreferences = 
-        context.getSharedPreferences("indriver_bot_prefs", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("indrive_bot_prefs", Context.MODE_PRIVATE)
 
-    // Bot Settings
-    fun isAutoBidEnabled(): Boolean = sharedPreferences.getBoolean("auto_bid_enabled", true)
-    fun setAutoBidEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean("auto_bid_enabled", enabled).apply()
+    // ===== РЕЖИМ =====
+    fun getMode(): String = prefs.getString("mode", MODE_ALL) ?: MODE_ALL
+    fun setMode(v: String) = prefs.edit().putString("mode", v).apply()
 
-    fun areNotificationsEnabled(): Boolean = sharedPreferences.getBoolean("notifications_enabled", true)
-    fun setNotificationsEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean("notifications_enabled", enabled).apply()
+    // ===== ФИЛЬТРЫ ЦЕНЫ =====
+    fun isMinPriceEnabled(): Boolean = prefs.getBoolean("filter_min_price_on", true)
+    fun setMinPriceEnabled(v: Boolean) = prefs.edit().putBoolean("filter_min_price_on", v).apply()
+    fun getMinPrice(): Double = prefs.getFloat("filter_min_price", 2000f).toDouble()
+    fun setMinPrice(v: Double) = prefs.edit().putFloat("filter_min_price", v.toFloat()).apply()
 
-    fun getMinPrice(): Double = sharedPreferences.getString("min_price", "0.0")?.toDoubleOrNull() ?: 0.0
-    fun setMinPrice(price: Double) = sharedPreferences.edit().putString("min_price", price.toString()).apply()
+    fun isMinIntercityPriceEnabled(): Boolean = prefs.getBoolean("filter_min_intercity_price_on", true)
+    fun setMinIntercityPriceEnabled(v: Boolean) = prefs.edit().putBoolean("filter_min_intercity_price_on", v).apply()
+    fun getMinIntercityPrice(): Double = prefs.getFloat("filter_min_intercity_price", 5000f).toDouble()
+    fun setMinIntercityPrice(v: Double) = prefs.edit().putFloat("filter_min_intercity_price", v.toFloat()).apply()
 
-    fun getMaxDistance(): Double = sharedPreferences.getString("max_distance", "10.0")?.toDoubleOrNull() ?: 10.0
-    fun setMaxDistance(distance: Double) = sharedPreferences.edit().putString("max_distance", distance.toString()).apply()
+    // ===== ГОРОДА НАЗНАЧЕНИЯ =====
+    fun getAllowedCities(): Set<String> =
+        prefs.getStringSet("allowed_cities", DEFAULT_CITIES.toSet()) ?: DEFAULT_CITIES.toSet()
+    fun setAllowedCities(cities: Set<String>) =
+        prefs.edit().putStringSet("allowed_cities", cities).apply()
+    fun isCityFilterEnabled(): Boolean = prefs.getBoolean("city_filter_on", false)
+    fun setCityFilterEnabled(v: Boolean) = prefs.edit().putBoolean("city_filter_on", v).apply()
 
-    // Stats
-    fun getAcceptedCount(): Int = sharedPreferences.getInt("accepted_count", 0)
-    fun incrementAccepted() = sharedPreferences.edit().putInt("accepted_count", getAcceptedCount() + 1).apply()
+    // ===== АВТО-ЗВОНОК =====
+    fun isAutoCallEnabled(): Boolean = prefs.getBoolean("auto_call_enabled", true)
+    fun setAutoCallEnabled(v: Boolean) = prefs.edit().putBoolean("auto_call_enabled", v).apply()
+    fun getCallDelayMs(): Long = prefs.getLong("call_delay_ms", 1000L)
+    fun setCallDelayMs(v: Long) = prefs.edit().putLong("call_delay_ms", v).apply()
 
-    fun getMissedCount(): Int = sharedPreferences.getInt("missed_count", 0)
-    fun incrementMissed() = sharedPreferences.edit().putInt("missed_count", getMissedCount() + 1).apply()
+    // ===== РАБОЧЕЕ ВРЕМЯ =====
+    fun isWorkHoursEnabled(): Boolean = prefs.getBoolean("work_hours_on", false)
+    fun setWorkHoursEnabled(v: Boolean) = prefs.edit().putBoolean("work_hours_on", v).apply()
+    fun getWorkStart(): Int = prefs.getInt("work_start", 8)   // час
+    fun setWorkStart(v: Int) = prefs.edit().putInt("work_start", v).apply()
+    fun getWorkEnd(): Int = prefs.getInt("work_end", 22)
+    fun setWorkEnd(v: Int) = prefs.edit().putInt("work_end", v).apply()
 
-    fun getTodayAccepted(): Int = sharedPreferences.getInt("today_accepted", 0)
-    fun incrementTodayAccepted() = sharedPreferences.edit().putInt("today_accepted", getTodayAccepted() + 1).apply()
-
-    fun getTodayEarnings(): Double = sharedPreferences.getString("today_earnings", "0.0")?.toDoubleOrNull() ?: 0.0
-    fun addTodayEarnings(amount: Double) = sharedPreferences.edit().putString("today_earnings", (getTodayEarnings() + amount).toString()).apply()
-
-    fun getTotalEarnings(): Double = sharedPreferences.getString("total_earnings", "0.0")?.toDoubleOrNull() ?: 0.0
-    fun addEarnings(amount: Double) = sharedPreferences.edit().putString("total_earnings", (getTotalEarnings() + amount).toString()).apply()
-
-    fun getBestDay(): String = sharedPreferences.getString("best_day", "N/A") ?: "N/A"
-    fun setBestDay(day: String) = sharedPreferences.edit().putString("best_day", day).apply()
-
+    // ===== СТАТИСТИКА =====
+    fun getAcceptedCount(): Int = prefs.getInt("stat_accepted", 0)
+    fun incrementAccepted() = prefs.edit().putInt("stat_accepted", getAcceptedCount() + 1).apply()
+    fun getMissedCount(): Int = prefs.getInt("stat_missed", 0)
+    fun incrementMissed() = prefs.edit().putInt("stat_missed", getMissedCount() + 1).apply()
+    fun getCallCount(): Int = prefs.getInt("stat_calls", 0)
+    fun incrementCalls() = prefs.edit().putInt("stat_calls", getCallCount() + 1).apply()
+    fun getTotalEarnings(): Double = prefs.getFloat("stat_earnings", 0f).toDouble()
+    fun addEarnings(amount: Double) =
+        prefs.edit().putFloat("stat_earnings", (getTotalEarnings() + amount).toFloat()).apply()
+    fun getLastOrderInfo(): String = prefs.getString("last_order_info", "") ?: ""
+    fun setLastOrderInfo(info: String) = prefs.edit().putString("last_order_info", info).apply()
     fun getWinRate(): Double {
-        val accepted = getAcceptedCount()
-        val missed = getMissedCount()
-        val total = accepted + missed
-        return if (total > 0) (accepted.toDouble() / total) * 100 else 0.0
+        val a = getAcceptedCount(); val m = getMissedCount()
+        return if (a + m > 0) (a.toDouble() / (a + m)) * 100 else 0.0
     }
+    fun resetStats() = prefs.edit()
+        .putInt("stat_accepted", 0).putInt("stat_missed", 0)
+        .putInt("stat_calls", 0).putFloat("stat_earnings", 0f)
+        .putString("last_order_info", "").apply()
 
-    fun resetStats() {
-        sharedPreferences.edit().apply {
-            putInt("accepted_count", 0)
-            putInt("missed_count", 0)
-            putString("total_earnings", "0.0")
-            putInt("today_accepted", 0)
-            putString("today_earnings", "0.0")
-            putString("best_day", "N/A")
-            apply()
-        }
+    // ===== BLACKLIST НОМЕРОВ =====
+    fun getBlacklist(): Set<String> =
+        prefs.getStringSet("blacklist", emptySet()) ?: emptySet()
+    fun addToBlacklist(phone: String) {
+        val set = getBlacklist().toMutableSet()
+        set.add(phone.replace("[^0-9]".toRegex(), ""))
+        prefs.edit().putStringSet("blacklist", set).apply()
+    }
+    fun removeFromBlacklist(phone: String) {
+        val set = getBlacklist().toMutableSet()
+        set.remove(phone.replace("[^0-9]".toRegex(), ""))
+        prefs.edit().putStringSet("blacklist", set).apply()
+    }
+    fun isBlacklisted(phone: String): Boolean =
+        getBlacklist().contains(phone.replace("[^0-9]".toRegex(), ""))
+
+    companion object {
+        const val MODE_ALL = "all"           // городская + межгород
+        const val MODE_INTERCITY = "intercity" // только межгород
+
+        val KZ_CITIES = listOf(
+            "Алматы", "Астана", "Шымкент", "Актобе", "Тараз",
+            "Павлодар", "Усть-Каменогорск", "Семей", "Атырау",
+            "Костанай", "Кызылорда", "Уральск", "Петропавловск",
+            "Актау", "Темиртау", "Туркестан", "Кокшетау",
+            "Талдыкорган", "Экибастуз", "Рудный", "Жезказган",
+            Житикара",
+            "Балхаш", "Сатпаев", "Кентау", "Жанаозен"
+        ).sorted()
+
+        val DEFAULT_CITIES = setOf(
+            "Алматы", "Астана", "Шымкент", "Актобе", "Тараз"
+        )
     }
 }

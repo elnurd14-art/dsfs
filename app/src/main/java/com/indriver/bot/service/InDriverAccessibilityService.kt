@@ -2,130 +2,438 @@ package com.indriver.bot.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Intent
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
+import com.indriver.bot.utils.PreferenceManager
+import java.util.Calendar
 
 class InDriverAccessibilityService : AccessibilityService() {
 
     companion object {
         const val TAG = "InDriverBot"
-        // Оба package name inDrive (старый и новый)
-        const val PACKAGE_INDRIVER_OLD = "sinet.startup.inDriver"
-        const val PACKAGE_INDRIVER_NEW = "com.indriver"
+        const val PACKAGE_OLD = "sinet.startup.inDriver"
+        const val PACKAGE_NEW = "com.indriver"
 
-        @Volatile
-        private var instance: InDriverAccessibilityService? = null
+        @Volatile var instance: InDriverAccessibilityService? = null
+        @Volatile var isRunning = false
 
-        fun getInstance(): InDriverAccessibilityService? = instance
+        var onOrderDetected: ((OrderInfo) -> Unit)? = null
+        var onOrderRejected: ((OrderInfo, String) -> Unit)? = null
     }
 
-    private var totalOrdersDetected = 0
-    private var ordersAccepted = 0
+    data class OrderInfo(
+        val price: Double,          // итоговая цена в ₸
+        val pricePerKm: Double,     // цена за км (₸/км)
+        val distanceToClient: Double, // расстояние до клиента (м или км)
+        val rating: Double,         // рейтинг клиента
+        val ratingCount: Int,       // количество оценок
+        val phone: String,          // номер телефона (может быть пустым)
+        val clientName: String,     // имя клиента
+        val addressFrom: String,    // адрес откуда
+        val addressTo: String,      // адрес куда
+        val cityFrom: String,       // город откуда
+        val cityTo: String,         // город куда
+        val paymentType: String,    // Kaspi / Наличные и т.д.
+        val isIntercity: Boolean,
+        val orderType: String,      // "Город" / "Межгород" / "Грузовые"
+        val rawText: String
+    )
+
+    private lateinit var prefs: PreferenceManager
+    private val handler = Handler(Looper.getMainLooper())
+    private var lastCallTime = 0L
+    private val MIN_CALL_INTERVAL = 15_000L
+    private var lastScreenHash = 0
+    // Хранение уже обработанных заказов чтобы не дублировать
+    private val processedOrders = mutableSetOf<Int>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-
-        val info = AccessibilityServiceInfo().apply {
+        prefs = PreferenceManager(this)
+        serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPES_ALL_MASK
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            flags = AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE or
-                   AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
-                   AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
-            notificationTimeout = 100
-            packageNames = arrayOf(PACKAGE_INDRIVER_OLD, PACKAGE_INDRIVER_NEW)
+            flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
+                    AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+            notificationTimeout = 50
+            packageNames = arrayOf(PACKAGE_OLD, PACKAGE_NEW)
         }
-        serviceInfo = info
-
-        Log.d(TAG, "Сервис специальных возможностей подключён")
+        Log.d(TAG, "✅ Сервис подключён — inDrive водительское приложение")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        val packageName = event.packageName?.toString() ?: return
-
-        if (packageName != PACKAGE_INDRIVER_OLD && packageName != PACKAGE_INDRIVER_NEW) return
+        if (!isRunning) return
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg != PACKAGE_OLD && pkg != PACKAGE_NEW) return
 
         when (event.eventType) {
-            AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> handleNotification(event)
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> handleWindowChange(event)
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> scanScreen()
         }
     }
 
-    override fun onInterrupt() {
-        Log.d(TAG, "Сервис прерван")
-    }
+    override fun onInterrupt() = Unit
 
-    private fun handleNotification(event: AccessibilityEvent) {
-        val text = event.text?.joinToString(" ") ?: ""
-        Log.d(TAG, "Уведомление: $text")
-
-        // Ключевые слова на русском, казахском, арабском и английском
-        val orderKeywords = listOf("заказ", "поездка", "заявка", "жаңа", "тапсырыс", "طلب", "order", "новый")
-        if (orderKeywords.any { text.contains(it, ignoreCase = true) }) {
-            totalOrdersDetected++
-            Log.d(TAG, "Новый заказ обнаружен! Всего: $totalOrdersDetected")
-            tryAcceptOrder()
-        }
-    }
-
-    private fun handleWindowChange(event: AccessibilityEvent) {
-        val className = event.className?.toString() ?: ""
-        if (className.contains("Order", ignoreCase = true) ||
-            className.contains("Trip", ignoreCase = true)) {
-            tryAcceptOrder()
-        }
-    }
-
-    private fun tryAcceptOrder() {
+    // ================================================================
+    //  СКАНИРОВАНИЕ ЭКРАНА
+    // ================================================================
+    private fun scanScreen() {
         val root = rootInActiveWindow ?: return
 
-        // Тексты кнопок: русский, казахский, арабский, английский, испанский
-        val acceptTexts = listOf(
-            "Принять", "ПРИНЯТЬ",
-            "Қабылдау", "ҚАБЫЛДАУ",
-            "قبول",
-            "Accept", "ACCEPT",
-            "ACEPTAR"
-        )
+        val texts = mutableListOf<String>()
+        collectAllText(root, texts)
+        if (texts.isEmpty()) return
 
-        for (text in acceptTexts) {
-            val nodes = root.findAccessibilityNodeInfosByText(text)
-            for (node in nodes) {
-                if (node.isClickable) {
-                    val accepted = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    if (accepted) {
-                        ordersAccepted++
-                        showToast("✅ Заказ принят!")
-                        Log.d(TAG, "Заказ принят! Всего принято: $ordersAccepted")
-                        return
+        val fullText = texts.joinToString(" | ")
+        val hash = fullText.hashCode()
+        if (hash == lastScreenHash) return
+        lastScreenHash = hash
+
+        // === Определяем что за экран ===
+        val isOrderFeed = isOrderFeedScreen(fullText)
+        val isSingleOrder = isSingleOrderScreen(fullText)
+
+        when {
+            isOrderFeed -> processOrderFeed(texts, fullText)
+            isSingleOrder -> processSingleOrder(texts, fullText)
+        }
+    }
+
+    // ================================================================
+    //  ОПРЕДЕЛЕНИЕ ЭКРАНА
+    // ================================================================
+
+    // Экран "Лента заказов" — список карточек как на фото 3
+    private fun isOrderFeedScreen(text: String): Boolean {
+        return (text.contains("Лента заказов", ignoreCase = true) ||
+                text.contains("₸/км", ignoreCase = true)) &&
+               (text.contains("₸") || text.contains("тенге", ignoreCase = true))
+    }
+
+    // Экран одного заказа (открытая карточка)
+    private fun isSingleOrderScreen(text: String): Boolean {
+        return listOf(
+            "Принять", "Предложить цену", "Откликнуться",
+            "Ищем водителей", "Ожидайте звонков", "Заказ создан",
+            "Отменить заказ", "Откуда", "Куда"
+        ).any { text.contains(it, ignoreCase = true) }
+    }
+
+    // ================================================================
+    //  ОБРАБОТКА ЛЕНТЫ ЗАКАЗОВ (фото 3 — главный экран водителя)
+    // ================================================================
+    private fun processOrderFeed(texts: List<String>, fullText: String) {
+        // В ленте может быть несколько карточек — ищем первую подходящую
+
+        // Разбиваем на блоки по разделителю между карточками
+        // Каждая карточка начинается с "X,X ₸/км" — это уникальный маркер
+        val cardPattern = Regex("""(\d+[.,]\d+)\s*[₸Т]/км[^\|]*?(\d[\d\s]+)\s*[₸Т]""")
+        val matches = cardPattern.findAll(fullText)
+
+        for (match in matches) {
+            val cardText = extractCardBlock(fullText, match.range.first)
+            val info = parseOrderCard(cardText)
+
+            // Уникальный ключ карточки = цена + адрес от
+            val cardKey = "${info.price}_${info.addressFrom}".hashCode()
+            if (processedOrders.contains(cardKey)) continue
+
+            val (passed, reason) = checkFilters(info)
+            if (passed) {
+                processedOrders.add(cardKey)
+                if (processedOrders.size > 50) processedOrders.clear()
+
+                prefs.incrementAccepted()
+                prefs.setLastOrderInfo(buildSummary(info))
+                onOrderDetected?.invoke(info)
+
+                if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty()) {
+                    scheduleCall(info.phone)
+                } else if (prefs.isAutoCallEnabled()) {
+                    // Номер появится после принятия — пока уведомление
+                    handler.post {
+                        Toast.makeText(applicationContext,
+                            "📦 Заказ ${info.price.toInt()}₸ подходит! Откройте карточку",
+                            Toast.LENGTH_LONG).show()
                     }
                 }
-                // Попробовать нажать на родительский элемент
-                val parent = node.parent
-                if (parent != null && parent.isClickable) {
-                    val accepted = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    if (accepted) {
-                        ordersAccepted++
-                        showToast("✅ Заказ принят!")
-                        Log.d(TAG, "Заказ принят через родителя! Всего: $ordersAccepted")
-                        return
-                    }
-                }
+                break // Берём первый подходящий
+            } else {
+                Log.d(TAG, "❌ ${info.price.toInt()}₸ — $reason")
             }
         }
     }
 
-    private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    // Извлекаем блок текста одной карточки
+    private fun extractCardBlock(fullText: String, startPos: Int): String {
+        val end = minOf(startPos + 400, fullText.length)
+        return fullText.substring(startPos, end)
     }
 
-    fun getStats(): Pair<Int, Int> = Pair(totalOrdersDetected, ordersAccepted)
+    // ================================================================
+    //  РАЗБОР КАРТОЧКИ ЗАКАЗА (формат из фото 3)
+    // ================================================================
+    private fun parseOrderCard(cardText: String): OrderInfo {
+        // Пример текста карточки:
+        // "192,3 ₸/км ~745 м | 1 000 ₸ | Сатурн-3, жилой комплекс (Астана) | Ак Шанырак (Астана) | Kaspi (перевод)"
 
-    fun resetStats() {
-        totalOrdersDetected = 0
-        ordersAccepted = 0
+        val pricePerKm = extractPricePerKm(cardText)
+        val price = extractMainPrice(cardText)
+        val distToClient = extractDistanceToClient(cardText)
+        val rating = extractRating(cardText)
+        val ratingCount = extractRatingCount(cardText)
+        val clientName = extractClientName(cardText)
+        val addressFrom = extractAddressFrom(cardText)
+        val addressTo = extractAddressTo(cardText)
+        val cityFrom = extractCityFromAddress(addressFrom)
+        val cityTo = extractCityFromAddress(addressTo)
+        val paymentType = extractPaymentType(cardText)
+        val phone = extractPhone(cardText)
+        val isIntercity = detectIntercity(cardText, cityFrom, cityTo)
+        val orderType = if (isIntercity) "Межгород" else "Город"
+
+        return OrderInfo(
+            price, pricePerKm, distToClient, rating, ratingCount,
+            phone, clientName, addressFrom, addressTo,
+            cityFrom, cityTo, paymentType, isIntercity, orderType, cardText
+        )
+    }
+
+    // ================================================================
+    //  ОБРАБОТКА ОДИНОЧНОГО ЗАКАЗА (открытая карточка)
+    // ================================================================
+    private fun processSingleOrder(texts: List<String>, fullText: String) {
+        val info = parseOrderCard(fullText)
+        val cardKey = "${info.price}_${info.addressFrom}".hashCode()
+        if (processedOrders.contains(cardKey)) return
+
+        val (passed, reason) = checkFilters(info)
+        if (passed) {
+            processedOrders.add(cardKey)
+            prefs.incrementAccepted()
+            prefs.setLastOrderInfo(buildSummary(info))
+            onOrderDetected?.invoke(info)
+            if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty()) scheduleCall(info.phone)
+        } else {
+            prefs.incrementMissed()
+            onOrderRejected?.invoke(info, reason)
+        }
+    }
+
+    // ================================================================
+    //  ИЗВЛЕЧЕНИЕ ДАННЫХ — под реальный формат inDrive
+    // ================================================================
+
+    // "192,3 ₸/км" — цена за километр
+    private fun extractPricePerKm(text: String): Double {
+        val p = Regex("""(\d+[.,]\d+)\s*[₸Т]/км""")
+        return p.find(text)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() ?: 0.0
+    }
+
+    // "1 000 ₸" — главная цена (крупным шрифтом)
+    // На экране inDrive цена идёт ПОСЛЕ "₸/км ~X м" блока
+    private fun extractMainPrice(text: String): Double {
+        // Убираем "₸/км" блок чтобы не путать с ценой за км
+        val cleaned = text.replace(Regex("""\d+[.,]\d+\s*[₸Т]/км"""), "")
+        val patterns = listOf(
+            Regex("""(\d[\d\s]{2,6})\s*[₸Т](?!\s*/\s*км)"""),  // "1 000 ₸" не за км
+            Regex("""[₸Т]\s*(\d[\d\s]{2,6})"""),
+        )
+        for (p in patterns) {
+            val m = p.find(cleaned) ?: continue
+            val n = m.groupValues[1].replace("\\s".toRegex(), "").toDoubleOrNull() ?: continue
+            if (n in 300.0..9_999_999.0) return n
+        }
+        return 0.0
+    }
+
+    // "~745 м" или "~2,3 км" — расстояние до клиента
+    private fun extractDistanceToClient(text: String): Double {
+        // В метрах
+        val mPattern = Regex("""~(\d+)\s*м\b""")
+        val mMatch = mPattern.find(text)
+        if (mMatch != null) return mMatch.groupValues[1].toDoubleOrNull()?.div(1000) ?: 0.0
+        // В километрах
+        val kmPattern = Regex("""~(\d+[.,]\d+)\s*км""")
+        val kmMatch = kmPattern.find(text)
+        if (kmMatch != null) return kmMatch.groupValues[1].replace(',', '.').toDoubleOrNull() ?: 0.0
+        return 0.0
+    }
+
+    // "⭐ 5.0 (88)" — рейтинг
+    private fun extractRating(text: String): Double {
+        val p = Regex("""([4-5][.,]\d{1,2})\s*\(""")
+        return p.find(text)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() ?: 0.0
+    }
+
+    // "(88)" — количество оценок
+    private fun extractRatingCount(text: String): Int {
+        val p = Regex("""\((\d+)\)""")
+        return p.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
+
+    // Имя клиента — слово перед рейтингом (Назерке, Марал, Алия)
+    private fun extractClientName(text: String): String {
+        val p = Regex("""([А-ЯЁа-яёA-Za-z][а-яёa-z]{2,20})\s*[★⭐\*]?\s*[4-5][.,]\d""")
+        return p.find(text)?.groupValues?.get(1)?.trim() ?: ""
+    }
+
+    // Адрес ОТКУДА — первый адресный блок
+    private fun extractAddressFrom(text: String): String {
+        // Формат: "Название жилого комплекса (улица, Город)"
+        val lines = text.split("|", "\n").map { it.trim() }.filter { it.length > 5 }
+        for (line in lines) {
+            if (isAddressLine(line) && !isMetaLine(line)) return line
+        }
+        return ""
+    }
+
+    // Адрес КУДА — второй адресный блок
+    private fun extractAddressTo(text: String): String {
+        val lines = text.split("|", "\n").map { it.trim() }.filter { it.length > 5 }
+        var foundFirst = false
+        for (line in lines) {
+            if (isAddressLine(line) && !isMetaLine(line)) {
+                if (foundFirst) return line
+                foundFirst = true
+            }
+        }
+        return ""
+    }
+
+    private fun isAddressLine(line: String): Boolean {
+        return line.contains("улица", ignoreCase = true) ||
+               line.contains("проспект", ignoreCase = true) ||
+               line.contains("жилой комплекс", ignoreCase = true) ||
+               line.contains("мкр", ignoreCase = true) ||
+               PreferenceManager.KZ_CITIES.any { line.contains(it, ignoreCase = true) }
+    }
+
+    private fun isMetaLine(line: String): Boolean {
+        return line.contains("₸") || line.contains("км") ||
+               line.contains("Лента") || line.contains("Статистика") ||
+               line.contains("Кошелёк") || line.contains("Спрос")
+    }
+
+    // Извлекаем город из адреса "(Астана)" или "Астана,"
+    private fun extractCityFromAddress(address: String): String {
+        for (city in PreferenceManager.KZ_CITIES) {
+            if (address.contains(city, ignoreCase = true)) return city
+        }
+        return ""
+    }
+
+    // Тип оплаты: "Kaspi (перевод)", "Наличные"
+    private fun extractPaymentType(text: String): String {
+        return when {
+            text.contains("Kaspi", ignoreCase = true) -> "Kaspi"
+            text.contains("наличн", ignoreCase = true) -> "Наличные"
+            text.contains("перевод", ignoreCase = true) -> "Перевод"
+            text.contains("карт", ignoreCase = true) -> "Карта"
+            else -> ""
+        }
+    }
+
+    private fun extractPhone(text: String): String {
+        val p = Regex("""(\+?[78][\s\-]?7\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})""")
+        return p.find(text)?.groupValues?.get(1)?.replace("[\\s\\-]".toRegex(), "") ?: ""
+    }
+
+    // Межгород: слово "Межгород" в меню ИЛИ два разных города
+    private fun detectIntercity(text: String, cityFrom: String, cityTo: String): Boolean {
+        if (text.contains("Межгород", ignoreCase = true)) return true
+        if (text.contains("межгород", ignoreCase = true)) return true
+        if (text.contains("қалааралық", ignoreCase = true)) return true
+        if (cityFrom.isNotEmpty() && cityTo.isNotEmpty() &&
+            !cityFrom.equals(cityTo, ignoreCase = true)) return true
+        return false
+    }
+
+    // ================================================================
+    //  ФИЛЬТРЫ
+    // ================================================================
+    private fun checkFilters(info: OrderInfo): Pair<Boolean, String> {
+        // Рабочее время
+        if (prefs.isWorkHoursEnabled()) {
+            val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            if (h < prefs.getWorkStart() || h >= prefs.getWorkEnd())
+                return false to "Вне рабочего времени"
+        }
+        // Режим
+        if (prefs.getMode() == PreferenceManager.MODE_INTERCITY && !info.isIntercity)
+            return false to "Не межгородской"
+        // Blacklist
+        if (info.phone.isNotEmpty() && prefs.isBlacklisted(info.phone))
+            return false to "Blacklist"
+        // Мин. цена
+        if (prefs.isMinPriceEnabled() && info.price > 0) {
+            val min = if (info.isIntercity) prefs.getMinIntercityPrice() else prefs.getMinPrice()
+            if (info.price < min)
+                return false to "Цена ${info.price.toInt()}₸ < ${min.toInt()}₸"
+        }
+        // Города назначения
+        if (prefs.isCityFilterEnabled() && info.cityTo.isNotEmpty()) {
+            if (prefs.getAllowedCities().none { info.cityTo.contains(it, ignoreCase = true) })
+                return false to "Город '${info.cityTo}' не в списке"
+        }
+        return true to ""
+    }
+
+    // ================================================================
+    //  ЗВОНОК
+    // ================================================================
+    private fun scheduleCall(phone: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastCallTime < MIN_CALL_INTERVAL) return
+        lastCallTime = now
+        handler.postDelayed({ makeCall(phone) }, prefs.getCallDelayMs())
+    }
+
+    private fun makeCall(phone: String) {
+        try {
+            val clean = phone.replace("[^+0-9]".toRegex(), "")
+            startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$clean")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
+            prefs.incrementCalls()
+            handler.post {
+                Toast.makeText(applicationContext, "📞 Звоним: $clean", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            handler.post {
+                Toast.makeText(applicationContext,
+                    "⚠️ Дайте разрешение на звонки", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun buildSummary(info: OrderInfo): String = buildString {
+        append(if (info.isIntercity) "🚚 МЕЖГОРОД\n" else "📦 Городская\n")
+        if (info.price > 0) append("💵 ${info.price.toInt()} ₸")
+        if (info.pricePerKm > 0) append("  (${info.pricePerKm} ₸/км)")
+        append("\n")
+        if (info.clientName.isNotEmpty()) append("👤 ${info.clientName}")
+        if (info.rating > 0) append("  ⭐ ${info.rating}")
+        if (info.ratingCount > 0) append(" (${info.ratingCount})")
+        if (info.clientName.isNotEmpty() || info.rating > 0) append("\n")
+        if (info.addressFrom.isNotEmpty()) append("📍 ${info.addressFrom.take(40)}\n")
+        if (info.addressTo.isNotEmpty()) append("→ ${info.addressTo.take(40)}\n")
+        if (info.paymentType.isNotEmpty()) append("💳 ${info.paymentType}\n")
+        if (info.phone.isNotEmpty()) append("📞 ${info.phone}")
+        else append("📞 Номер появится после принятия")
+    }
+
+    private fun collectAllText(node: AccessibilityNodeInfo, list: MutableList<String>) {
+        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { list.add(it) }
+        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { list.add(it) }
+        for (i in 0 until node.childCount) node.getChild(i)?.let { collectAllText(it, list) }
     }
 }

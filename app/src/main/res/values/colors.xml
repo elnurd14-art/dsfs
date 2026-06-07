@@ -1,33 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Colors - Dark Theme -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    
-    <!-- Background -->
-    <color name="bg_primary">#0D1117</color>
-    <color name="bg_secondary">#161B22</color>
-    <color name="bg_tertiary">#21262D</color>
-    
-    <!-- Text -->
-    <color name="text_primary">#FFFFFFFF</color>
-    <color name="text_secondary">#8B949E</color>
-    <color name="text_tertiary">#6E7681</color>
-    
-    <!-- Status Colors -->
-    <color name="green_500">#3FB950</color>
-    <color name="green_900">#238636</color>
-    <color name="red_500">#F85149</color>
-    <color name="red_900">#DA3633</color>
-    <color name="orange_500">#D29922</color>
-    <color name="orange_900">#9E6A03</color>
-    <color name="blue_500">#58A6FF</color>
-    <color name="blue_900">#1F6FEB</color>
-    
-    <!-- Neutral -->
-    <color name="gray_500">#6E7681</color>
-    <color name="gray_900">#30363D</color>
-    
-    <!-- Accent -->
-    <color name="accent">#238636</color>
+
+    <!-- ALI-стиль: яркие градиентные цвета -->
+    <color name="primary">#FF6B00</color>
+    <color name="primary_dark">#CC5500</color>
+    <color name="primary_light">#FF8C33</color>
+    <color name="accent_green">#00C853</color>
+    <color name="accent_green_dark">#009624</color>
+    <color name="accent_red">#FF1744</color>
+    <color name="accent_blue">#2979FF</color>
+    <color name="accent_yellow">#FFD600</color>
+    <color name="accent_purple">#D500F9</color>
+
+    <!-- Фон -->
+    <color name="bg_primary">#F5F5F5</color>
+    <color name="bg_white">#FFFFFF</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="bg_dark">#1A1A2E</color>
+
+    <!-- Текст -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_hint">#BDBDBD</color>
+
+    <!-- Алиасы для старого кода -->
+    <color name="green_500">#00C853</color>
+    <color name="red_500">#FF1744</color>
+    <color name="orange_500">#FF6B00</color>
+    <color name="blue_500">#2979FF</color>
+    <color name="gray_500">#9E9E9E</color>
+    <color name="gray_900">#E0E0E0</color>
+
+    <!-- Статус карточки -->
+    <color name="status_active_bg">#E8F5E9</color>
+    <color name="status_inactive_bg">#FFEBEE</color>
+    <color name="divider">#EEEEEE</color>
 </resources>
