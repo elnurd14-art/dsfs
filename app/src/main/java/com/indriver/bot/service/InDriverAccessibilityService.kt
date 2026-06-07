@@ -181,49 +181,132 @@ class InDriverAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // Подходит! Нажимаем «Откликнуться» / «С попутчиками»
+            // Подходит! Кликаем карточку — inDrive сам звонит
             processedOrders.add(cardKey)
             if (processedOrders.size > 50) processedOrders.clear()
 
             prefs.incrementAccepted()
-            val summary = "🚗 ПОПУТЧИК\n💵 ${rawPrice.toInt()} ₸\n📍 $cityFrom → $cityTo\n→ Нажимаю «Откликнуться»..."
+            val summary = "🚗 ПОПУТЧИК\n💵 ${rawPrice.toInt()} ₸\n📍 $cityFrom → $cityTo\n→ Кликаю карточку..."
             prefs.setLastOrderInfo(summary)
             onOrderDetected?.invoke(
                 OrderInfo(rawPrice, 0.0, 0.0, 0.0, 0, "", "", cityFrom, cityTo,
                     cityFrom, cityTo, "", true, "Попутчики", cardText)
             )
 
-            // Нажимаем кнопку «Откликнуться» или «С попутчиками»
-            handler.postDelayed({ tapCarpoolAcceptButton() }, prefs.getCallDelayMs())
+            // Кликаем карточку с нужной ценой — inDrive сам открывает и звонит
+            val priceStr = rawPrice.toInt().toString()
+            handler.postDelayed({ tapCardByPrice(priceStr) }, prefs.getCallDelayMs())
             break
         }
     }
 
-    // Ищем и нажимаем кнопку принятия попутчика через Accessibility
-    private fun tapCarpoolAcceptButton() {
+    // Кликаем карточку с конкретной ценой — inDrive сам открывает и звонит клиенту
+    private fun tapCardByPrice(priceStr: String) {
         val root = rootInActiveWindow ?: return
-        val targets = listOf("Откликнуться", "С попутчиками", "Принять", "Отклик")
-        for (targetText in targets) {
-            val node = findNodeByText(root, targetText)
-            if (node != null) {
-                val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                if (!clicked) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                Log.d(TAG, "✅ Нажали: $targetText")
+
+        // Ищем узел с нужной ценой (например "7 000" или "7000")
+        val priceNode = findNodeWithPrice(root, priceStr)
+        if (priceNode != null) {
+            // Поднимаемся до кликабельного родителя — это и есть карточка
+            var clickable: AccessibilityNodeInfo? = priceNode
+            for (i in 0..10) {
+                if (clickable?.isClickable == true) break
+                clickable = clickable?.parent
+            }
+            val clicked = clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
+            if (clicked) {
+                prefs.incrementCalls()
+                Log.d(TAG, "✅ Кликнули карточку с ценой $priceStr ₸")
                 handler.post {
                     Toast.makeText(applicationContext,
-                        "🚗 Нажали «$targetText»! Жди звонка...",
-                        Toast.LENGTH_LONG).show()
+                        "🚗 Кликнули $priceStr ₸ — inDrive звонит!",
+                        Toast.LENGTH_SHORT).show()
                 }
-                prefs.incrementCalls()
                 return
             }
         }
-        Log.d(TAG, "⚠️ Кнопка откликнуться не найдена")
+
+        // Fallback: кликаем по tapCarpoolAcceptButton
+        Log.d(TAG, "⚠️ Цена $priceStr не найдена, пробуем общий клик")
+        tapCarpoolAcceptButton()
+    }
+
+    // Ищем узел содержащий цену (с пробелами или без: "7 000" / "7000")
+    private fun findNodeWithPrice(node: AccessibilityNodeInfo, priceStr: String): AccessibilityNodeInfo? {
+        val text = node.text?.toString() ?: ""
+        // Цена может быть "7 000 ₸" или "7000₸" — проверяем разные форматы
+        val priceWithSpace = priceStr.reversed().chunked(3).joinToString(" ").reversed()
+        if (text.contains(priceStr) || text.contains(priceWithSpace)) return node
+        for (i in 0 until node.childCount) {
+            val found = node.getChild(i)?.let { findNodeWithPrice(it, priceStr) }
+            if (found != null) return found
+        }
+        return null
+    }
+
+        // Кликаем на карточку попутчика в ленте — inDrive сам звонит клиенту
+    private fun tapCarpoolAcceptButton() {
+        val root = rootInActiveWindow ?: return
+
+        // Стратегия 1: найти карточку по тексту "С попутчиками" и кликнуть её родителя
+        val carpoolNode = findNodeByText(root, "С попутчиками")
+        if (carpoolNode != null) {
+            // Поднимаемся вверх по дереву до кликабельного контейнера (сама карточка)
+            var target: AccessibilityNodeInfo? = carpoolNode
+            repeat(6) {
+                val parent = target?.parent
+                if (parent != null && parent.isClickable) target = parent
+                else if (parent != null) target = parent
+            }
+            // Ищем кликабельного предка
+            var clickable: AccessibilityNodeInfo? = carpoolNode
+            repeat(8) {
+                if (clickable?.isClickable == true) return@repeat
+                clickable = clickable?.parent
+            }
+            val clicked = clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
+            Log.d(TAG, if (clicked) "✅ Кликнули карточку попутчика" else "⚠️ Клик не прошёл")
+            if (clicked) {
+                prefs.incrementCalls()
+                handler.post {
+                    Toast.makeText(applicationContext,
+                        "🚗 Открываю карточку — inDrive звонит...",
+                        Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+        }
+
+        // Стратегия 2: кликнуть первый кликабельный большой элемент на экране (карточка заказа)
+        val firstCard = findFirstClickableCard(root)
+        if (firstCard != null) {
+            firstCard.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            prefs.incrementCalls()
+            Log.d(TAG, "✅ Кликнули первую карточку на экране")
+            handler.post {
+                Toast.makeText(applicationContext,
+                    "🚗 Открываю карточку — inDrive звонит...",
+                    Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        Log.d(TAG, "⚠️ Карточка попутчика не найдена для клика")
         handler.post {
             Toast.makeText(applicationContext,
-                "🚗 Подходящий попутчик — нажми «Откликнуться» сам",
+                "🚗 Подходящий попутчик найден — нажми на карточку сам!",
                 Toast.LENGTH_LONG).show()
         }
+    }
+
+    // Ищем первый большой кликабельный элемент (карточка заказа в ленте)
+    private fun findFirstClickableCard(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isClickable && node.childCount > 2) return node
+        for (i in 0 until node.childCount) {
+            val found = node.getChild(i)?.let { findFirstClickableCard(it) }
+            if (found != null) return found
+        }
+        return null
     }
 
     // Поиск узла по тексту рекурсивно
