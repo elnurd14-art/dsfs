@@ -1,20 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.InDriverBot" parent="Theme.Material3.Light.NoActionBar">
+    <style name="Theme.InDriverBot" parent="Theme.MaterialComponents.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_dark</item>
-        <item name="colorSecondary">@color/accent_green</item>
-        <item name="android:colorBackground">@color/bg_primary</item>
-        <item name="colorSurface">@color/bg_white</item>
-        <item name="colorError">@color/accent_red</item>
-        <item name="android:textColorPrimary">@color/text_primary</item>
-        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="colorPrimaryDark">@color/bg_primary</item>
+        <item name="colorAccent">@color/primary</item>
         <item name="android:windowBackground">@color/bg_primary</item>
-        <item name="android:statusBarColor">@color/primary</item>
-        <item name="android:navigationBarColor">@color/bg_white</item>
+        <item name="android:statusBarColor">@color/bg_primary</item>
+        <item name="android:navigationBarColor">@color/bg_primary</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="switchStyle">@style/GreenSwitch</item>
     </style>
 
-    <style name="Theme.InDriverBot.Dialog" parent="Theme.Material3.Light.Dialog">
-        <item name="colorPrimary">@color/primary</item>
+    <style name="DarkDialogTheme" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="android:background">#1A1D26</item>
+        <item name="android:textColor">#F0F2FF</item>
+        <item name="colorPrimary">#00C853</item>
+        <item name="colorAccent">#00C853</item>
+        <item name="android:textColorPrimary">#F0F2FF</item>
+        <item name="android:textColorSecondary">#7B82A0</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/DarkDialogTitle</item>
+    </style>
+
+    <style name="DarkDialogTitle" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">#F0F2FF</item>
+        <item name="android:textSize">18sp</item>
+    </style>
+
+    <style name="GreenSwitch" parent="Widget.MaterialComponents.CompoundButton.Switch">
+        <item name="thumbTint">@color/white</item>
+        <item name="trackTint">@color/primary</item>
     </style>
 </resources>

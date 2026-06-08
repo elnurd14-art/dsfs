@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">inDrive Авто-Бот</string>
+    <string name="app_name">Такса</string>
     <string name="accessibility_service_description">
-        Бот отслеживает входящие заказы в inDrive и автоматически звонит клиентам по заданным фильтрам.
+        Бот отслеживает входящие заказы в inDrive и автоматически звонит клиентам.
         Требуется разрешение на специальные возможности.
     </string>
 </resources>
