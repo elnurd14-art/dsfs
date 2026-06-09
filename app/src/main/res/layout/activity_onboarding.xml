@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_primary">
+
+    <!-- ViewPager2 -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+
+    <!-- Dots indicator -->
+    <LinearLayout
+        android:id="@+id/dotsLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="120dp"
+        android:orientation="horizontal"/>
+
+    <!-- Next / Done button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnNext"
+        android:layout_width="200dp"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="48dp"
+        android:backgroundTint="@color/primary"
+        android:text="Далее"
+        android:textAllCaps="false"
+        android:textColor="#0F1117"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:cornerRadius="14dp"
+        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+
+    <!-- Skip -->
+    <TextView
+        android:id="@+id/btnSkip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="20dp"
+        android:paddingTop="32dp"
+        android:text="Пропустить"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:padding="8dp"/>
+</FrameLayout>

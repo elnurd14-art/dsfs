@@ -19,6 +19,9 @@ import com.indriver.bot.databinding.ActivityMainBinding
 import com.indriver.bot.databinding.DialogFiltersBinding
 import com.indriver.bot.service.BotService
 import com.indriver.bot.service.InDriverAccessibilityService
+import com.indriver.bot.ui.log.LogActivity
+import com.indriver.bot.ui.onboarding.OnboardingActivity
+import com.indriver.bot.utils.OrderLogger
 import com.indriver.bot.utils.PermissionHelper
 import com.indriver.bot.utils.PreferenceManager
 
@@ -26,6 +29,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefs: PreferenceManager
+    private lateinit var logger: OrderLogger
 
     companion object {
         private const val REQ_OVERLAY      = 1001
@@ -43,7 +47,16 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        prefs = PreferenceManager(this)
+        prefs  = PreferenceManager(this)
+        logger = OrderLogger(this)
+
+        // Показываем онбординг при первом запуске
+        val appPrefs = getSharedPreferences("taksa_prefs", MODE_PRIVATE)
+        if (!appPrefs.getBoolean("onboarding_done", false)) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
 
         setupListeners()
         loadUI()
@@ -137,8 +150,14 @@ class MainActivity : AppCompatActivity() {
         // Задержка звонка
         binding.btnCallDelayEdit.setOnClickListener { showCallDelayDialog() }
 
-        // Статистика и разрешения
-        binding.btnStats.setOnClickListener { showStatsDialog() }
+        // Статистика — открывает журнал
+        binding.btnStats.setOnClickListener {
+            startActivity(Intent(this, LogActivity::class.java))
+        }
+        // Долгое нажатие — детальная статистика
+        binding.btnStats.setOnLongClickListener {
+            showStatsDialog(); true
+        }
         binding.btnSettings.setOnClickListener { showPermissionsDialog() }
         binding.btnGrantPermissions.setOnClickListener { requestAllPermissions() }
     }
@@ -387,6 +406,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Диалог с детальной статистикой (открывается долгим нажатием на карточку статистики)
     private fun updateModeUI() {
         val mode = prefs.getMode()
 

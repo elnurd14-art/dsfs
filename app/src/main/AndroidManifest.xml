@@ -19,6 +19,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.InDriverBot">
 
+        <!-- Onboarding -->
+        <activity
+            android:name=".ui.onboarding.OnboardingActivity"
+            android:exported="false"
+            android:theme="@style/Theme.InDriverBot"/>
+
+        <!-- Order Log -->
+        <activity
+            android:name=".ui.log.LogActivity"
+            android:exported="false"
+            android:theme="@style/Theme.InDriverBot"/>
+
         <!-- Main Activity -->
         <activity
             android:name=".ui.main.MainActivity"
