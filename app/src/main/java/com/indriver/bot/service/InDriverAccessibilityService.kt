@@ -393,15 +393,15 @@ class InDriverAccessibilityService : AccessibilityService() {
             val priceWithSpace = priceStr.reversed().chunked(3).joinToString(" ").reversed()
             val priceNode = findNodeByTextAny(root, listOf(priceStr, priceWithSpace, "$priceStr ₸"))
             if (priceNode != null) {
-                var node = priceNode
+                var node: AccessibilityNodeInfo? = priceNode
                 var steps = 0
-                while (steps < 10) {
+                while (node != null && steps < 10) {
                     if (node.isClickable) {
                         node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         prefs.incrementCalls()
                         return true
                     }
-                    node = try { node.parent } catch (e: Exception) { break } ?: break
+                    node = try { node.parent } catch (e: Exception) { null }
                     steps++
                 }
             }
