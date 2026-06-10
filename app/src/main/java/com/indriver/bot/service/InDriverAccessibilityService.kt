@@ -20,12 +20,12 @@ import java.util.Calendar
 class InDriverAccessibilityService : AccessibilityService() {
 
     companion object {
-        const val TAG = "TaksaBot"
+        const val TAG         = "TaksaBot"
         const val PACKAGE_OLD = "sinet.startup.inDriver"
         const val PACKAGE_NEW = "com.indriver"
 
-        @Volatile var instance: InDriverAccessibilityService? = null
-        @Volatile var isRunning = false
+        @Volatile var instance:  InDriverAccessibilityService? = null
+        @Volatile var isRunning: Boolean = false
 
         var onOrderDetected: ((OrderInfo) -> Unit)? = null
         var onOrderRejected: ((OrderInfo, String) -> Unit)? = null
@@ -49,60 +49,70 @@ class InDriverAccessibilityService : AccessibilityService() {
         val rawText: String
     )
 
-    private lateinit var prefs: PreferenceManager
+    private lateinit var prefs:  PreferenceManager
     private lateinit var logger: OrderLogger
 
-    // ── Главный поток: только UI-операции (Toast, уведомления) ───────
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // ── Фоновый поток для тяжёлого парсинга ─────────────────────────
-    private val bgThread = HandlerThread("TaksaScanner").also { it.start() }
+    // Фоновый поток — весь тяжёлый парсинг здесь, главный поток не блокируем
+    private val bgThread  = HandlerThread("TaksaScanner", android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY).also { it.start() }
     private val bgHandler = Handler(bgThread.looper)
 
-    private var lastCallTime    = 0L
     private val MIN_CALL_INTERVAL = 15_000L
+    private var lastCallTime      = 0L
 
-    // Антифлуд — сбрасываем хэш каждые 30 сек
+    // Антифлуд по хэшу экрана
     private var lastScreenHash   = 0
     private var lastScreenHashTs = 0L
-    private val HASH_RESET_MS    = 30_000L
+    private val HASH_TTL_MS      = 5_000L   // ← было 30с — сократили до 5с: новый заказ появится быстрее
 
-    // Флаг: сканирование уже идёт — не запускаем второе
     @Volatile private var scanInProgress = false
 
-    private val processedOrders = mutableSetOf<Int>()
+    // Кольцевой буфер обработанных заказов (не Set — избегаем утечки памяти)
+    private val processedOrders  = ArrayDeque<Int>(300)
+    private val MAX_PROCESSED    = 300
 
-    // Watchdog: нет событий от inDrive > 5 мин
+    // Предкомпилированные regex — создаём один раз, не при каждом вызове
+    private val rePricePerKm     = Regex("""(\d+[.,]\d+)\s*[₸Т]/км""")
+    private val rePriceInText    = Regex("""(\d[\d\s]{2,7})\s*[₸Т](?!\s*/\s*км)""")
+    private val reDistanceM      = Regex("""~(\d+)\s*м\b""")
+    private val reDistanceKm     = Regex("""~(\d+[.,]\d+)\s*км""")
+    private val reRating         = Regex("""([4-5][.,]\d{1,2})\s*\(""")
+    private val reRatingCount    = Regex("""\((\d+)\)""")
+    private val reClientName     = Regex("""([А-ЯЁа-яёA-Za-z][а-яёa-z]{2,20})\s*[*]?\s*[4-5][.,]\d""")
+    private val rePhone          = Regex("""(\+?[78][\s\-]?7\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})""")
+    private val reDate           = Regex("""\d+\s*(янв|фев|мар|апр|май|июн|июл|авг|сен|окт|ноя|дек)""")
+
+    // Watchdog
     private var lastIndriveEventTs = 0L
-    private val WATCHDOG_MS = 5 * 60_000L
     private val watchdogRunnable = object : Runnable {
         override fun run() {
             if (isRunning && lastIndriveEventTs > 0) {
                 val gap = System.currentTimeMillis() - lastIndriveEventTs
-                if (gap > WATCHDOG_MS) {
-                    BotService.updateBotNotification(
-                        applicationContext,
-                        "Нет событий от inDrive ${gap / 60_000} мин — проверьте приложение"
-                    )
-                }
+                if (gap > 5 * 60_000L)
+                    BotService.updateBotNotification(applicationContext,
+                        "Нет событий от inDrive ${gap / 60_000} мин — откройте приложение")
             }
             mainHandler.postDelayed(this, 60_000L)
         }
     }
 
+    // ================================================================
+    //  ЖИЗНЕННЫЙ ЦИКЛ
+    // ================================================================
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        prefs  = PreferenceManager(this)
-        logger = OrderLogger(this)
+        prefs    = PreferenceManager(this)
+        logger   = OrderLogger(this)
 
         serviceInfo = AccessibilityServiceInfo().apply {
-            eventTypes = AccessibilityEvent.TYPES_ALL_MASK
-            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
-                    AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
-            notificationTimeout = 0        // ← было 50мс — убираем искусственную задержку
-            packageNames = arrayOf(PACKAGE_OLD, PACKAGE_NEW, "com.indriver.driver")
+            eventTypes       = AccessibilityEvent.TYPES_ALL_MASK
+            feedbackType     = AccessibilityServiceInfo.FEEDBACK_GENERIC
+            flags            = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
+                               AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+            notificationTimeout = 0   // без задержки
+            packageNames     = arrayOf(PACKAGE_OLD, PACKAGE_NEW, "com.indriver.driver")
         }
         mainHandler.postDelayed(watchdogRunnable, 60_000L)
         Log.d(TAG, "Такса подключена")
@@ -112,12 +122,12 @@ class InDriverAccessibilityService : AccessibilityService() {
         if (!isRunning) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg != PACKAGE_OLD && pkg != PACKAGE_NEW && pkg != "com.indriver.driver") return
-
         lastIndriveEventTs = System.currentTimeMillis()
-
+        // Реагируем на ВСЕ изменения контента — не только STATE_CHANGED
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_SCROLLED,           // ← новое: скролл ленты
             AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> scheduleBackgroundScan()
         }
     }
@@ -128,48 +138,47 @@ class InDriverAccessibilityService : AccessibilityService() {
         super.onDestroy()
         mainHandler.removeCallbacks(watchdogRunnable)
         bgThread.quitSafely()
+        instance = null
     }
 
     // ================================================================
-    //  ПЛАНИРОВЩИК: кидаем сканирование в фоновый поток
-    //  Если предыдущее ещё не закончилось — пропускаем (не копим очередь)
+    //  ПЛАНИРОВЩИК
     // ================================================================
     private fun scheduleBackgroundScan() {
-        if (scanInProgress) return          // не копим очередь событий
+        if (scanInProgress) return
         bgHandler.post {
-            if (scanInProgress) return@post // double-check в фоне
+            if (scanInProgress) return@post
             scanInProgress = true
-            try {
-                scanScreen()
-            } finally {
-                scanInProgress = false
-            }
+            try { scanScreen() }
+            catch (e: Exception) { Log.e(TAG, "scanScreen crash: ${e.message}") }
+            finally { scanInProgress = false }
         }
     }
 
     // ================================================================
-    //  СКАНИРОВАНИЕ ЭКРАНА  (выполняется в bgThread)
+    //  СКАНИРОВАНИЕ
     // ================================================================
     private fun scanScreen() {
         val root = rootInActiveWindow ?: return
 
-        val texts = mutableListOf<String>()
+        val texts = ArrayList<String>(64)
         collectAllText(root, texts)
         if (texts.isEmpty()) return
 
         val fullText = texts.joinToString(" | ")
-        val hash = fullText.hashCode()
+        val hash     = fullText.hashCode()
+        val now      = System.currentTimeMillis()
 
-        val now = System.currentTimeMillis()
-        if (hash == lastScreenHash) {
-            if (now - lastScreenHashTs < HASH_RESET_MS) return
-        }
+        if (hash == lastScreenHash && now - lastScreenHashTs < HASH_TTL_MS) return
         lastScreenHash   = hash
         lastScreenHashTs = now
 
         when {
+            // Попутки/посылки/весь-салон — экран с лентой карточек
             isCarpoolFeedScreen(fullText) -> processCarpoolFeed(root, fullText)
+            // Лента обычных заказов (цена/км)
             isOrderFeedScreen(fullText)   -> processOrderFeed(texts, fullText)
+            // Отдельная карточка заказа
             isSingleOrderScreen(fullText) -> processSingleOrder(texts, fullText)
         }
     }
@@ -181,45 +190,56 @@ class InDriverAccessibilityService : AccessibilityService() {
         text.contains("₸/км", ignoreCase = true)
 
     private fun isCarpoolFeedScreen(text: String): Boolean {
-        val marker = text.contains("С попутчиками", ignoreCase = true) ||
-                     text.contains("Отправить посылку", ignoreCase = true)
-        val price  = text.contains("₸") || text.contains("тенге", ignoreCase = true)
-        return marker && price && !text.contains("₸/км", ignoreCase = true)
+        val hasMarker = text.contains("С попутчиками", ignoreCase = true) ||
+                        text.contains("Весь салон",     ignoreCase = true) ||
+                        text.contains("Отправить посылку", ignoreCase = true)
+        val hasPrice  = text.contains("₸") || text.contains("тенге", ignoreCase = true)
+        return hasMarker && hasPrice && !text.contains("₸/км", ignoreCase = true)
     }
 
     private fun isSingleOrderScreen(text: String) = listOf(
         "Принять", "Предложить цену", "Откликнуться",
-        "Ищем водителей", "Ожидайте звонков", "Отменить заказ", "Откуда", "Куда"
+        "Ищем водителей", "Ожидайте звонков", "Отменить заказ"
     ).any { text.contains(it, ignoreCase = true) }
 
     // ================================================================
-    //  ОБРАБОТКА ПОПУТЧИКОВ / ПОСЫЛОК
+    //  ОБРАБОТКА ЛЕНТЫ ПОПУТЧИКОВ / ПОСЫЛОК / ВЕСЬ-САЛОН
     // ================================================================
     private fun processCarpoolFeed(root: AccessibilityNodeInfo, fullText: String) {
         val mode  = prefs.getMode()
         val cards = findCarpoolCards(root)
-        Log.d(TAG, "Карточек попутчиков: ${cards.size}")
+        if (cards.isEmpty()) return
 
         for (cardNode in cards) {
-            val cardTexts = mutableListOf<String>()
+            val cardTexts = ArrayList<String>(16)
             collectAllText(cardNode, cardTexts)
             val cardText = cardTexts.joinToString(" | ")
 
+            // Тип заказа
+            val isParcel    = cardText.contains("Отправить посылку", ignoreCase = true)
+            val isFullSalon = cardText.contains("Весь салон", ignoreCase = true)
+            val orderType   = when {
+                isParcel    -> "Посылка"
+                isFullSalon -> "Весь салон"
+                else        -> "Попутчики"
+            }
+
+            // Фильтр по режиму
+            when (mode) {
+                PreferenceManager.MODE_INTERCITY ->
+                    if (!isParcel) { logMissed(orderType, 0.0, "", "", "Режим: только посылки"); continue }
+                PreferenceManager.MODE_CARPOOL ->
+                    if (isParcel || isFullSalon) { logMissed(orderType, 0.0, "", "", "Режим: только попутчики"); continue }
+                PreferenceManager.MODE_ALL -> { /* принимаем всё */ }
+            }
+
+            // Цена
             val price = extractPriceSmartFromNode(cardNode)
                      ?: extractPriceSmart(cardText)
                      ?: 0.0
             if (price <= 0) continue
 
-            val isParcel  = cardText.contains("Отправить посылку", ignoreCase = true)
-            val orderType = if (isParcel) "Посылка" else "Попутчики"
-
-            when (mode) {
-                PreferenceManager.MODE_INTERCITY ->
-                    if (!isParcel) { logMissed(orderType, price, "", "", "Режим: только посылки"); continue }
-                PreferenceManager.MODE_CARPOOL ->
-                    if (isParcel) { logMissed(orderType, price, "", "", "Режим: только попутчики"); continue }
-            }
-
+            // Города
             val cityFrom = PreferenceManager.KZ_CITIES.firstOrNull {
                 cardText.contains(it, ignoreCase = true)
             } ?: "Астана"
@@ -227,9 +247,11 @@ class InDriverAccessibilityService : AccessibilityService() {
                 cardText.contains(it, ignoreCase = true) && !it.equals(cityFrom, ignoreCase = true)
             } ?: ""
 
+            // Антидубль
             val cardKey = "${price.toInt()}_${cardText.take(80)}".hashCode()
-            if (processedOrders.contains(cardKey)) continue
+            if (isProcessed(cardKey)) continue
 
+            // Ценовой фильтр
             val priceMode  = if (isParcel) prefs.getIntercityPriceMode() else prefs.getCarpoolPriceMode()
             val minPrice   = if (isParcel) prefs.getMinIntercityPrice()  else prefs.getMinCarpoolPrice()
             val fixedPrice = if (isParcel) prefs.getFixedIntercityPrice() else prefs.getFixedCarpoolPrice()
@@ -238,7 +260,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 PreferenceManager.PRICE_OFF   -> true
                 PreferenceManager.PRICE_MIN   -> price >= minPrice
                 PreferenceManager.PRICE_FIXED -> fixedPrice <= 0 ||
-                        Math.abs(price - fixedPrice) <= fixedPrice * 0.05
+                        kotlin.math.abs(price - fixedPrice) <= fixedPrice * 0.05
                 else -> true
             }
             if (!priceOk) {
@@ -247,6 +269,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 continue
             }
 
+            // Фильтр города назначения
             if (prefs.isCityFilterEnabled() && cityTo.isNotEmpty()) {
                 if (prefs.getAllowedCities().none { cityTo.contains(it, ignoreCase = true) }) {
                     logMissed(orderType, price, cityFrom, cityTo, "Город '$cityTo' не разрешён")
@@ -255,20 +278,17 @@ class InDriverAccessibilityService : AccessibilityService() {
                 }
             }
 
-            processedOrders.add(cardKey)
-            if (processedOrders.size > 200) processedOrders.clear()
-
+            // ── ПОДХОДЯЩИЙ ЗАКАЗ НАЙДЕН ──────────────────────────────
+            markProcessed(cardKey)
             prefs.incrementAccepted()
             prefs.addEarnings(price)
-
-            val summary = buildCarpoolSummary(orderType, price, cityFrom, cityTo)
-            prefs.setLastOrderInfo(summary)
+            prefs.setLastOrderInfo(buildCarpoolSummary(orderType, price, cityFrom, cityTo))
 
             logger.add(OrderLogger.LogEntry(
                 timestamp = System.currentTimeMillis(),
                 orderType = orderType, price = price.toInt(),
-                cityFrom = cityFrom, cityTo = cityTo,
-                status = "ПРИНЯТ", reason = ""
+                cityFrom  = cityFrom, cityTo = cityTo,
+                status    = "ПРИНЯТ", reason = ""
             ))
 
             val info = OrderInfo(price, 0.0, 0.0, 0.0, 0, "",
@@ -278,117 +298,56 @@ class InDriverAccessibilityService : AccessibilityService() {
             val notifText = "$orderType — ${price.toInt()} T" +
                 if (cityFrom.isNotEmpty() || cityTo.isNotEmpty()) "\n$cityFrom -> $cityTo" else ""
             BotService.showOrderNotification(applicationContext, "Такса нашла заказ!", notifText)
-
+            BotService.updateBotNotification(applicationContext, "Последний: ${price.toInt()} T — $orderType")
             mainHandler.post { vibrate() }
 
-            BotService.updateBotNotification(applicationContext,
-                "Последний: ${price.toInt()} T — $orderType")
-
-            // ── КЛИК БЕЗ ЗАДЕРЖКИ — сразу открываем карточку ────────
+            // ── КЛИК — максимально быстро ────────────────────────────
             val capturedNode = cardNode
-            val delayMs = prefs.getCallDelayMs()
-            if (delayMs <= 0L) {
-                // Мгновенно — прямо в этом же фоновом потоке
+            val delayMs      = prefs.getCallDelayMs()
+            val clickAction  = Runnable {
                 val clicked = performClickOnCard(capturedNode)
                 if (!clicked) {
+                    // Fallback: ищем по цене через 600мс
                     mainHandler.postDelayed({
-                        if (!tapCardByPrice(price.toInt().toString())) {
-                            showToast("Подходящий заказ ${price.toInt()} T — нажмите сами!")
-                        }
-                    }, 800L)
+                        if (!tapCardByPrice(price.toInt().toString()))
+                            showToast("Заказ ${price.toInt()} T — нажмите вручную!")
+                    }, 600L)
                 }
-            } else {
-                mainHandler.postDelayed({
-                    val clicked = performClickOnCard(capturedNode)
-                    if (!clicked) {
-                        mainHandler.postDelayed({
-                            if (!tapCardByPrice(price.toInt().toString())) {
-                                showToast("Подходящий заказ ${price.toInt()} T — нажмите сами!")
-                            }
-                        }, 800L)
-                    }
-                }, delayMs)
             }
+            if (delayMs <= 0L) clickAction.run()          // мгновенно в bgThread
+            else mainHandler.postDelayed(clickAction, delayMs)
 
-            break
+            break  // обрабатываем только первую подходящую карточку
         }
     }
 
     // ================================================================
-    //  УМНЫЙ ПАРСИНГ ЦЕНЫ — узел
-    // ================================================================
-    private fun extractPriceSmartFromNode(cardNode: AccessibilityNodeInfo): Double? {
-        val priceNodes = mutableListOf<AccessibilityNodeInfo>()
-        collectPriceNodes(cardNode, priceNodes)
-
-        for (node in priceNodes) {
-            val text = node.text?.toString() ?: continue
-            if (text.length > 30) continue
-            val cleaned = text.replace(Regex("[\\s₸Т]"), "")
-            val value = cleaned.toDoubleOrNull() ?: continue
-            if (value in 500.0..9_999_999.0) return value
-        }
-        return null
-    }
-
-    private fun collectPriceNodes(node: AccessibilityNodeInfo, result: MutableList<AccessibilityNodeInfo>) {
-        try {
-            val text = node.text?.toString() ?: ""
-            if (text.contains("₸") && text.any { it.isDigit() } &&
-                !node.isClickable && node.childCount == 0) {
-                result.add(node)
-            }
-            for (i in 0 until node.childCount) {
-                val child = try { node.getChild(i) } catch (e: Exception) { null } ?: continue
-                collectPriceNodes(child, result)
-            }
-        } catch (e: Exception) { /* игнорируем */ }
-    }
-
-    // ================================================================
-    //  УМНЫЙ ПАРСИНГ ЦЕНЫ — текст
-    // ================================================================
-    private fun extractPriceSmart(text: String): Double? {
-        val cleaned = text.replace(Regex("""\\d+[.,]\\d+\\s*[₸Т]/км"""), "SKIP")
-        val pattern = Regex("""(\\d[\\d\\s]{2,7})\\s*[₸Т](?!\\s*/\\s*км)""")
-        for (match in pattern.findAll(cleaned)) {
-            val raw = match.groupValues[1].replace(Regex("\\s"), "")
-            val value = raw.toDoubleOrNull() ?: continue
-            if (value < 500.0 || value > 9_999_999.0) continue
-            val afterMatch = cleaned.substring(match.range.last + 1).take(40).lowercase()
-            val badContext = listOf("коробк", "место", "чел ", "адам", "орын", "кг", "литр", "штук", "пакет")
-            if (badContext.any { afterMatch.contains(it) }) continue
-            val beforeStart = maxOf(0, match.range.first - 30)
-            val beforeMatch = cleaned.substring(beforeStart, match.range.first).lowercase()
-            val badBefore = listOf("везу", "вес ", "объём", "размер")
-            if (badBefore.any { beforeMatch.contains(it) }) continue
-            return value
-        }
-        return null
-    }
-
-    // ================================================================
-    //  ПОИСК КАРТОЧЕК ПОПУТЧИКОВ
+    //  ПОИСК КАРТОЧЕК В ДЕРЕВЕ UI
     // ================================================================
     private fun findCarpoolCards(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
-        val result = mutableListOf<AccessibilityNodeInfo>()
+        val result = ArrayList<AccessibilityNodeInfo>(8)
         findCarpoolCardsRecursive(root, result, 0)
         return result
     }
 
-    private fun findCarpoolCardsRecursive(node: AccessibilityNodeInfo,
-                                          result: MutableList<AccessibilityNodeInfo>, depth: Int) {
-        if (depth > 15) return
+    private fun findCarpoolCardsRecursive(
+        node: AccessibilityNodeInfo,
+        result: ArrayList<AccessibilityNodeInfo>,
+        depth: Int
+    ) {
+        if (depth > 12) return   // ← было 15, сократили — дерево inDrive не глубже 10-12
         try {
             if (node.isClickable && node.childCount >= 2) {
-                val texts = mutableListOf<String>()
+                val texts = ArrayList<String>(8)
                 collectAllText(node, texts)
                 val joined = texts.joinToString(" ")
-                if ((joined.contains("С попутчиками", ignoreCase = true) ||
-                     joined.contains("Отправить посылку", ignoreCase = true)) &&
-                    joined.contains("₸")) {
+                val hasType  = joined.contains("С попутчиками", ignoreCase = true) ||
+                               joined.contains("Весь салон",     ignoreCase = true) ||
+                               joined.contains("Отправить посылку", ignoreCase = true)
+                val hasPrice = joined.contains("₸")
+                if (hasType && hasPrice) {
                     result.add(node)
-                    return
+                    return  // не ищем детей — карточка найдена
                 }
             }
             for (i in 0 until node.childCount) {
@@ -400,6 +359,9 @@ class InDriverAccessibilityService : AccessibilityService() {
         }
     }
 
+    // ================================================================
+    //  КЛИК ПО КАРТОЧКЕ
+    // ================================================================
     private fun performClickOnCard(cardNode: AccessibilityNodeInfo): Boolean {
         return try {
             if (cardNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
@@ -407,19 +369,18 @@ class InDriverAccessibilityService : AccessibilityService() {
                 mainHandler.post { showToast("Открываю карточку — inDrive звонит!") }
                 return true
             }
+            // Ищем кликабельного родителя (до 5 уровней)
             var parent = try { cardNode.parent } catch (e: Exception) { null }
-            var found = false
             repeat(5) {
-                if (found) return@repeat
                 val p = parent ?: return@repeat
                 if (p.isClickable && p.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                     prefs.incrementCalls()
-                    mainHandler.post { showToast("Открываю карточку — inDrive звонит!") }
-                    found = true
+                    mainHandler.post { showToast("Открываю карточку!") }
+                    return true
                 }
                 parent = try { p.parent } catch (e: Exception) { null }
             }
-            found
+            false
         } catch (e: Exception) {
             Log.e(TAG, "performClickOnCard: ${e.message}")
             false
@@ -430,24 +391,23 @@ class InDriverAccessibilityService : AccessibilityService() {
         return try {
             val root = rootInActiveWindow ?: return false
             val priceWithSpace = priceStr.reversed().chunked(3).joinToString(" ").reversed()
-            val priceNode = findNodeByTextAny(root, listOf(priceStr, priceWithSpace))
+            val priceNode = findNodeByTextAny(root, listOf(priceStr, priceWithSpace, "$priceStr ₸"))
             if (priceNode != null) {
-                var clickable: AccessibilityNodeInfo? = priceNode
+                var node = priceNode
                 var steps = 0
-                while (clickable != null && steps < 12) {
-                    if (clickable.isClickable) break
-                    clickable = try { clickable.parent } catch (e: Exception) { null }
+                while (steps < 10) {
+                    if (node.isClickable) {
+                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        prefs.incrementCalls()
+                        return true
+                    }
+                    node = try { node.parent } catch (e: Exception) { break } ?: break
                     steps++
                 }
-                if (clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) {
-                    prefs.incrementCalls()
-                    mainHandler.post { showToast("Кликнул заказ $priceStr T") }
-                    return true
-                }
             }
-            val firstCard = findFirstClickableCard(root)
-            if (firstCard != null) {
-                firstCard.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            // Последний шанс — первая кликабельная карточка
+            findFirstClickableCard(root)?.let {
+                it.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 prefs.incrementCalls()
                 return true
             }
@@ -459,52 +419,94 @@ class InDriverAccessibilityService : AccessibilityService() {
     }
 
     // ================================================================
-    //  ОБРАБОТКА ЛЕНТЫ ЗАКАЗОВ
+    //  ПАРСИНГ ЦЕНЫ ИЗ УЗЛА UI
+    // ================================================================
+    private fun extractPriceSmartFromNode(cardNode: AccessibilityNodeInfo): Double? {
+        val candidates = ArrayList<AccessibilityNodeInfo>(8)
+        collectPriceNodes(cardNode, candidates)
+        for (node in candidates) {
+            val text    = node.text?.toString() ?: continue
+            if (text.length > 30) continue
+            val cleaned = text.replace(Regex("[\\s₸Т,]"), "").replace(" ", "")
+            val value   = cleaned.toDoubleOrNull() ?: continue
+            if (value in 500.0..9_999_999.0) return value
+        }
+        return null
+    }
+
+    private fun collectPriceNodes(node: AccessibilityNodeInfo, result: ArrayList<AccessibilityNodeInfo>) {
+        try {
+            val text = node.text?.toString() ?: ""
+            if (text.contains("₸") && text.any { it.isDigit() } &&
+                !node.isClickable && node.childCount == 0) result.add(node)
+            for (i in 0 until node.childCount) {
+                val child = try { node.getChild(i) } catch (e: Exception) { null } ?: continue
+                collectPriceNodes(child, result)
+            }
+        } catch (_: Exception) {}
+    }
+
+    // ================================================================
+    //  ПАРСИНГ ЦЕНЫ ИЗ ТЕКСТА
+    // ================================================================
+    private fun extractPriceSmart(text: String): Double? {
+        // Убираем цену/км чтобы не спутать
+        val cleaned = text.replace(rePricePerKm, "SKIP")
+        for (match in rePriceInText.findAll(cleaned)) {
+            val raw   = match.groupValues[1].replace(Regex("\\s"), "")
+            val value = raw.toDoubleOrNull() ?: continue
+            if (value < 500.0 || value > 9_999_999.0) continue
+            val after  = cleaned.substring(minOf(match.range.last + 1, cleaned.length)).take(40).lowercase()
+            val before = cleaned.substring(maxOf(0, match.range.first - 30), match.range.first).lowercase()
+            val badAfter  = listOf("коробк", "место", "чел ", "адам", "орын", "кг", "литр", "штук", "пакет")
+            val badBefore = listOf("везу", "вес ", "объём", "размер")
+            if (badAfter.any { after.contains(it) }) continue
+            if (badBefore.any { before.contains(it) }) continue
+            return value
+        }
+        return null
+    }
+
+    // ================================================================
+    //  ЛЕНТА ОБЫЧНЫХ ЗАКАЗОВ (₸/км)
     // ================================================================
     private fun processOrderFeed(texts: List<String>, fullText: String) {
-        val matches = Regex("""(\d+[.,]\d+)\s*[₸Т]/км""").findAll(fullText).toList()
+        val matches = rePricePerKm.findAll(fullText).toList()
+        if (matches.isEmpty()) return
 
         for (i in matches.indices) {
-            val start = matches[i].range.first
-            val end = if (i + 1 < matches.size)
+            val start    = matches[i].range.first
+            val end      = if (i + 1 < matches.size)
                 minOf(matches[i + 1].range.first, start + 600)
-            else
-                minOf(start + 600, fullText.length)
+                else minOf(start + 600, fullText.length)
             val cardText = fullText.substring(start, end)
 
             val info = parseOrderCard(cardText)
             if (info.price <= 0) continue
 
             val cardKey = "${info.price}_${info.addressFrom}".hashCode()
-            if (processedOrders.contains(cardKey)) continue
+            if (isProcessed(cardKey)) continue
 
             val (passed, reason) = checkFilters(info)
             if (passed) {
-                processedOrders.add(cardKey)
-                if (processedOrders.size > 200) processedOrders.clear()
-
+                markProcessed(cardKey)
                 prefs.incrementAccepted()
                 prefs.addEarnings(info.price)
                 prefs.setLastOrderInfo(buildSummary(info))
-
                 logger.add(OrderLogger.LogEntry(
                     System.currentTimeMillis(), info.orderType, info.price.toInt(),
                     info.cityFrom, info.cityTo, "ПРИНЯТ", ""
                 ))
-
                 onOrderDetected?.invoke(info)
                 mainHandler.post { vibrate() }
-
                 val notifText = "${info.orderType} — ${info.price.toInt()} T" +
                     if (info.addressFrom.isNotEmpty()) "\n${info.addressFrom.take(40)}" else ""
                 BotService.showOrderNotification(applicationContext, "Такса нашла заказ!", notifText)
                 BotService.updateBotNotification(applicationContext,
                     "Последний: ${info.price.toInt()} T — ${info.orderType}")
-
                 if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty()) scheduleCall(info.phone)
                 break
             } else {
-                Log.d(TAG, "Пропущен ${info.price.toInt()} T — $reason")
                 prefs.incrementMissed()
                 logMissed(info.orderType, info.price, info.cityFrom, info.cityTo, reason)
             }
@@ -512,49 +514,18 @@ class InDriverAccessibilityService : AccessibilityService() {
     }
 
     // ================================================================
-    //  РАЗБОР КАРТОЧКИ ЗАКАЗА
-    // ================================================================
-    private fun parseOrderCard(cardText: String): OrderInfo {
-        val pricePerKm   = extractPricePerKm(cardText)
-        val price        = extractMainPrice(cardText)
-        val distToClient = extractDistanceToClient(cardText)
-        val rating       = extractRating(cardText)
-        val ratingCount  = extractRatingCount(cardText)
-        val clientName   = extractClientName(cardText)
-        val addressFrom  = extractAddressFrom(cardText)
-        val addressTo    = extractAddressTo(cardText)
-        val cityFrom     = extractCityFromAddress(addressFrom)
-        val cityTo       = extractCityFromAddress(addressTo)
-        val paymentType  = extractPaymentType(cardText)
-        val phone        = extractPhone(cardText)
-        val isParcel     = cardText.contains("Отправить посылку", ignoreCase = true) ||
-                           cardText.contains("посылк", ignoreCase = true)
-        val isIntercity  = isParcel || detectIntercity(cardText, cityFrom, cityTo)
-        val orderType    = when {
-            isParcel    -> "Посылка"
-            isIntercity -> "Посылка"
-            else        -> "Город"
-        }
-        return OrderInfo(
-            price, pricePerKm, distToClient, rating, ratingCount,
-            phone, clientName, addressFrom, addressTo,
-            cityFrom, cityTo, paymentType, isIntercity, orderType, cardText
-        )
-    }
-
-    // ================================================================
-    //  ОДИНОЧНЫЙ ЗАКАЗ
+    //  ОДИНОЧНАЯ КАРТОЧКА ЗАКАЗА
     // ================================================================
     private fun processSingleOrder(texts: List<String>, fullText: String) {
         val info = parseOrderCard(fullText)
         if (info.price <= 0) return
 
         val cardKey = "${info.price}_${info.addressFrom}".hashCode()
-        if (processedOrders.contains(cardKey)) return
+        if (isProcessed(cardKey)) return
 
         val (passed, reason) = checkFilters(info)
         if (passed) {
-            processedOrders.add(cardKey)
+            markProcessed(cardKey)
             prefs.incrementAccepted()
             prefs.addEarnings(info.price)
             prefs.setLastOrderInfo(buildSummary(info))
@@ -575,136 +546,155 @@ class InDriverAccessibilityService : AccessibilityService() {
     }
 
     // ================================================================
-    //  ИЗВЛЕЧЕНИЕ ДАННЫХ
+    //  РАЗБОР КАРТОЧКИ
     // ================================================================
-    private fun extractPricePerKm(text: String): Double {
-        val p = Regex("""(\d+[.,]\d+)\s*[₸Т]/км""")
-        return p.find(text)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() ?: 0.0
+    private fun parseOrderCard(cardText: String): OrderInfo {
+        val pricePerKm   = extractPricePerKm(cardText)
+        val price        = extractMainPrice(cardText)
+        val distToClient = extractDistanceToClient(cardText)
+        val rating       = extractRating(cardText)
+        val ratingCount  = extractRatingCount(cardText)
+        val clientName   = extractClientName(cardText)
+        val addressFrom  = extractAddressFrom(cardText)
+        val addressTo    = extractAddressTo(cardText)
+        val cityFrom     = extractCityFromAddress(addressFrom)
+        val cityTo       = extractCityFromAddress(addressTo)
+        val paymentType  = extractPaymentType(cardText)
+        val phone        = extractPhone(cardText)
+        val isParcel     = cardText.contains("Отправить посылку", ignoreCase = true) ||
+                           cardText.contains("посылк", ignoreCase = true)
+        val isFullSalon  = cardText.contains("Весь салон", ignoreCase = true)
+        val isIntercity  = isParcel || detectIntercity(cardText, cityFrom, cityTo)
+        val orderType    = when {
+            isParcel    -> "Посылка"
+            isFullSalon -> "Весь салон"
+            isIntercity -> "Посылка"
+            else        -> "Попутчики"
+        }
+        return OrderInfo(price, pricePerKm, distToClient, rating, ratingCount,
+            phone, clientName, addressFrom, addressTo,
+            cityFrom, cityTo, paymentType, isIntercity, orderType, cardText)
     }
 
+    // ================================================================
+    //  ИЗВЛЕЧЕНИЕ ПОЛЕЙ
+    // ================================================================
+    private fun extractPricePerKm(text: String): Double =
+        rePricePerKm.find(text)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() ?: 0.0
+
     private fun extractMainPrice(text: String): Double {
-        val cleaned = text.replace(Regex("""\d+[.,]\d+\s*[₸Т]/км"""), "SKIP")
+        val cleaned = text.replace(rePricePerKm, "SKIP")
         return extractPriceSmart(cleaned) ?: 0.0
     }
 
     private fun extractDistanceToClient(text: String): Double {
-        val mMatch = Regex("""~(\d+)\s*м\b""").find(text)
-        if (mMatch != null) return (mMatch.groupValues[1].toDoubleOrNull() ?: 0.0) / 1000.0
-        val kmMatch = Regex("""~(\d+[.,]\d+)\s*км""").find(text)
-        if (kmMatch != null) return kmMatch.groupValues[1].replace(',', '.').toDoubleOrNull() ?: 0.0
+        reDistanceM.find(text)?.let {
+            return (it.groupValues[1].toDoubleOrNull() ?: 0.0) / 1000.0
+        }
+        reDistanceKm.find(text)?.let {
+            return it.groupValues[1].replace(',', '.').toDoubleOrNull() ?: 0.0
+        }
         return 0.0
     }
 
-    private fun extractRating(text: String): Double {
-        val p = Regex("""([4-5][.,]\d{1,2})\s*\(""")
-        return p.find(text)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() ?: 0.0
-    }
+    private fun extractRating(text: String): Double =
+        reRating.find(text)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() ?: 0.0
 
-    private fun extractRatingCount(text: String): Int {
-        return Regex("""\((\d+)\)""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-    }
+    private fun extractRatingCount(text: String): Int =
+        reRatingCount.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-    private fun extractClientName(text: String): String {
-        val p = Regex("""([А-ЯЁа-яёA-Za-z][а-яёa-z]{2,20})\s*[*]?\s*[4-5][.,]\d""")
-        return p.find(text)?.groupValues?.get(1)?.trim() ?: ""
-    }
+    private fun extractClientName(text: String): String =
+        reClientName.find(text)?.groupValues?.get(1)?.trim() ?: ""
 
     private fun extractAddressFrom(text: String): String {
         val lines = text.split("|", "\n").map { it.trim() }.filter { it.length > 5 }
-        for (line in lines) {
-            if (isAddressLine(line) && !isMetaLine(line)) return line
-        }
-        return ""
+        return lines.firstOrNull { isAddressLine(it) && !isMetaLine(it) } ?: ""
     }
 
     private fun extractAddressTo(text: String): String {
         val lines = text.split("|", "\n").map { it.trim() }.filter { it.length > 5 }
-        var foundFirst = false
+        var found = false
         for (line in lines) {
             if (isAddressLine(line) && !isMetaLine(line)) {
-                if (foundFirst) return line
-                foundFirst = true
+                if (found) return line
+                found = true
             }
         }
         return ""
     }
 
-    private fun isAddressLine(line: String): Boolean {
-        return line.contains("улица", ignoreCase = true) ||
-               line.contains("проспект", ignoreCase = true) ||
-               line.contains("жилой комплекс", ignoreCase = true) ||
-               line.contains("мкр", ignoreCase = true) ||
-               line.contains("микрорайон", ignoreCase = true) ||
-               PreferenceManager.KZ_CITIES.any { line.contains(it, ignoreCase = true) }
+    private fun isAddressLine(line: String): Boolean =
+        line.contains("улица",         ignoreCase = true) ||
+        line.contains("проспект",      ignoreCase = true) ||
+        line.contains("жилой комплекс",ignoreCase = true) ||
+        line.contains("жк ",           ignoreCase = true) ||
+        line.contains("мкр",           ignoreCase = true) ||
+        line.contains("микрорайон",    ignoreCase = true) ||
+        line.contains("автовокзал",    ignoreCase = true) ||
+        line.contains("аэропорт",      ignoreCase = true) ||
+        line.contains("вокзал",        ignoreCase = true) ||
+        PreferenceManager.KZ_CITIES.any { line.contains(it, ignoreCase = true) }
+
+    private fun isMetaLine(line: String): Boolean =
+        line.contains("₸") || line.contains(" км") ||
+        line.contains("Лента") || line.contains("Статистика") ||
+        line.contains("Кошелёк") || line.contains("Спрос") ||
+        line.contains("Создано ") || reDate.containsMatchIn(line.lowercase())
+
+    private fun extractCityFromAddress(address: String): String =
+        PreferenceManager.KZ_CITIES.firstOrNull { address.contains(it, ignoreCase = true) } ?: ""
+
+    private fun extractPaymentType(text: String): String = when {
+        text.contains("Kaspi",   ignoreCase = true) -> "Kaspi"
+        text.contains("наличн",  ignoreCase = true) -> "Наличные"
+        text.contains("перевод", ignoreCase = true) -> "Перевод"
+        text.contains("карт",    ignoreCase = true) -> "Карта"
+        else -> ""
     }
 
-    private fun isMetaLine(line: String): Boolean {
-        return line.contains("₸") || line.contains(" км") ||
-               line.contains("Лента") || line.contains("Статистика") ||
-               line.contains("Кошелёк") || line.contains("Спрос") ||
-               line.contains("Создано ") ||
-               Regex("""\d+\s*(янв|фев|мар|апр|май|июн|июл|авг|сен|окт|ноя|дек)""")
-                   .containsMatchIn(line.lowercase())
-    }
+    private fun extractPhone(text: String): String =
+        rePhone.find(text)?.groupValues?.get(1)?.replace(Regex("[\\s\\-]"), "") ?: ""
 
-    private fun extractCityFromAddress(address: String): String {
-        for (city in PreferenceManager.KZ_CITIES) {
-            if (address.contains(city, ignoreCase = true)) return city
-        }
-        return ""
-    }
-
-    private fun extractPaymentType(text: String): String {
-        return when {
-            text.contains("Kaspi", ignoreCase = true)   -> "Kaspi"
-            text.contains("наличн", ignoreCase = true)  -> "Наличные"
-            text.contains("перевод", ignoreCase = true) -> "Перевод"
-            text.contains("карт", ignoreCase = true)    -> "Карта"
-            else -> ""
-        }
-    }
-
-    private fun extractPhone(text: String): String {
-        val p = Regex("""(\+?[78][\s\-]?7\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})""")
-        return p.find(text)?.groupValues?.get(1)?.replace(Regex("[\\s\\-]"), "") ?: ""
-    }
-
-    private fun detectIntercity(text: String, cityFrom: String, cityTo: String): Boolean {
-        if (text.contains("межгород", ignoreCase = true)) return true
-        if (text.contains("қалааралық", ignoreCase = true)) return true
-        if (cityFrom.isNotEmpty() && cityTo.isNotEmpty() &&
-            !cityFrom.equals(cityTo, ignoreCase = true)) return true
-        return false
-    }
+    private fun detectIntercity(text: String, cityFrom: String, cityTo: String): Boolean =
+        text.contains("межгород",     ignoreCase = true) ||
+        text.contains("қалааралық",   ignoreCase = true) ||
+        (cityFrom.isNotEmpty() && cityTo.isNotEmpty() && !cityFrom.equals(cityTo, ignoreCase = true))
 
     // ================================================================
     //  ФИЛЬТРЫ
     // ================================================================
     private fun checkFilters(info: OrderInfo): Pair<Boolean, String> {
+        // Рабочие часы
         if (prefs.isWorkHoursEnabled()) {
             val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
             if (h < prefs.getWorkStart() || h >= prefs.getWorkEnd())
-                return false to "Вне рабочего времени"
+                return false to "Вне рабочего времени ($h ч)"
         }
-        val mode = prefs.getMode()
-        when (mode) {
+
+        // Режим
+        when (prefs.getMode()) {
             PreferenceManager.MODE_INTERCITY ->
                 if (info.orderType != "Посылка" && !info.isIntercity)
                     return false to "Режим: только посылки"
             PreferenceManager.MODE_CARPOOL ->
                 if (info.orderType != "Попутчики")
                     return false to "Режим: только попутчики"
+            // MODE_ALL — принимаем всё
         }
-        if (info.phone.isNotEmpty() && prefs.isBlacklisted(info.phone))
-            return false to "Заблокирован"
 
+        // Чёрный список
+        if (info.phone.isNotEmpty() && prefs.isBlacklisted(info.phone))
+            return false to "Заблокирован: ${info.phone}"
+
+        // Ценовой фильтр
         if (info.price > 0) {
             val (priceMode, minPrice, fixedPrice) = when (info.orderType) {
-                "Попутчики" -> Triple(
+                "Попутчики",
+                "Весь салон" -> Triple(
                     prefs.getCarpoolPriceMode(), prefs.getMinCarpoolPrice(), prefs.getFixedCarpoolPrice())
-                "Посылка" -> Triple(
+                "Посылка"    -> Triple(
                     prefs.getIntercityPriceMode(), prefs.getMinIntercityPrice(), prefs.getFixedIntercityPrice())
-                else -> Triple(
+                else         -> Triple(
                     prefs.getCityPriceMode(), prefs.getMinPrice(), prefs.getFixedCityPrice())
             }
             when (priceMode) {
@@ -712,54 +702,30 @@ class InDriverAccessibilityService : AccessibilityService() {
                     if (info.price < minPrice)
                         return false to "Цена ${info.price.toInt()} T < ${minPrice.toInt()} T"
                 PreferenceManager.PRICE_FIXED ->
-                    if (fixedPrice > 0 && Math.abs(info.price - fixedPrice) > fixedPrice * 0.05)
-                        return false to "Цена ${info.price.toInt()} T != ${fixedPrice.toInt()} T"
+                    if (fixedPrice > 0 && kotlin.math.abs(info.price - fixedPrice) > fixedPrice * 0.05)
+                        return false to "Цена ${info.price.toInt()} T ≠ ${fixedPrice.toInt()} T"
             }
         }
+
+        // Фильтр города
         if (prefs.isCityFilterEnabled() && info.cityTo.isNotEmpty()) {
             if (prefs.getAllowedCities().none { info.cityTo.contains(it, ignoreCase = true) })
                 return false to "Город '${info.cityTo}' не разрешён"
         }
+
         return true to ""
     }
 
     // ================================================================
-    //  ВСПОМОГАТЕЛЬНЫЕ
+    //  ЗВОНОК
     // ================================================================
-    private fun vibrate() {
-        try {
-            val vibrator = getSystemService(Vibrator::class.java)
-            if (vibrator?.hasVibrator() == true) {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createWaveform(
-                        longArrayOf(0, 200, 100, 200), -1))
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator.vibrate(longArrayOf(0, 200, 100, 200), -1)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "vibrate: ${e.message}")
-        }
-    }
-
-    private fun logMissed(orderType: String, price: Double, from: String, to: String, reason: String) {
-        logger.add(OrderLogger.LogEntry(
-            System.currentTimeMillis(), orderType, price.toInt(),
-            from, to, "ПРОПУЩЕН", reason
-        ))
-    }
-
     private fun scheduleCall(phone: String) {
         val now = System.currentTimeMillis()
         if (now - lastCallTime < MIN_CALL_INTERVAL) return
         lastCallTime = now
-        val delayMs = prefs.getCallDelayMs()
-        if (delayMs <= 0L) {
-            makeCall(phone)     // звоним сразу в текущем потоке
-        } else {
-            mainHandler.postDelayed({ makeCall(phone) }, delayMs)
-        }
+        val delay = prefs.getCallDelayMs()
+        if (delay <= 0L) makeCall(phone)
+        else mainHandler.postDelayed({ makeCall(phone) }, delay)
     }
 
     private fun makeCall(phone: String) {
@@ -778,39 +744,66 @@ class InDriverAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun buildSummary(info: OrderInfo): String = buildString {
+    // ================================================================
+    //  АНТИДУБЛЬ — кольцевой буфер
+    // ================================================================
+    private fun isProcessed(key: Int): Boolean = processedOrders.contains(key)
+
+    private fun markProcessed(key: Int) {
+        if (processedOrders.size >= MAX_PROCESSED) processedOrders.removeFirst()
+        processedOrders.addLast(key)
+    }
+
+    // ================================================================
+    //  УТИЛИТЫ
+    // ================================================================
+    private fun vibrate() {
+        try {
+            val v = getSystemService(Vibrator::class.java) ?: return
+            if (!v.hasVibrator()) return
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
+                v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 180, 80, 180), -1))
+            else @Suppress("DEPRECATION") v.vibrate(longArrayOf(0, 180, 80, 180), -1)
+        } catch (e: Exception) { Log.e(TAG, "vibrate: ${e.message}") }
+    }
+
+    private fun logMissed(orderType: String, price: Double, from: String, to: String, reason: String) {
+        logger.add(OrderLogger.LogEntry(System.currentTimeMillis(),
+            orderType, price.toInt(), from, to, "ПРОПУЩЕН", reason))
+    }
+
+    private fun buildSummary(info: OrderInfo) = buildString {
         append("${info.orderType.uppercase()}\n")
         if (info.price > 0) {
             append("${info.price.toInt()} T")
             if (info.pricePerKm > 0) append("  (${info.pricePerKm} T/km)")
             append("\n")
         }
-        if (info.clientName.isNotEmpty()) append("${info.clientName}")
+        if (info.clientName.isNotEmpty()) append(info.clientName)
         if (info.rating > 0) append("  ${info.rating}")
         if (info.ratingCount > 0) append(" (${info.ratingCount})")
         if (info.clientName.isNotEmpty() || info.rating > 0) append("\n")
         if (info.addressFrom.isNotEmpty()) append("От: ${info.addressFrom.take(40)}\n")
-        if (info.addressTo.isNotEmpty()) append("До: ${info.addressTo.take(40)}\n")
+        if (info.addressTo.isNotEmpty())   append("До: ${info.addressTo.take(40)}\n")
         if (info.paymentType.isNotEmpty()) append("${info.paymentType}\n")
-        if (info.phone.isNotEmpty()) append(info.phone) else append("Номер после принятия")
+        append(if (info.phone.isNotEmpty()) info.phone else "Номер после принятия")
     }
 
     private fun buildCarpoolSummary(type: String, price: Double, from: String, to: String) =
         "$type\n${price.toInt()} T\n$from -> $to"
 
-    private fun showToast(msg: String) {
+    private fun showToast(msg: String) =
         Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show()
-    }
 
-    private fun collectAllText(node: AccessibilityNodeInfo, list: MutableList<String>) {
+    private fun collectAllText(node: AccessibilityNodeInfo, list: ArrayList<String>) {
         try {
             node.text?.toString()?.takeIf { it.isNotBlank() }?.let { list.add(it) }
             node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { list.add(it) }
             for (i in 0 until node.childCount) {
-                val child = try { node.getChild(i) } catch (e: Exception) { null } ?: continue
+                val child = try { node.getChild(i) } catch (_: Exception) { null } ?: continue
                 collectAllText(child, list)
             }
-        } catch (e: Exception) { /* узел переработан */ }
+        } catch (_: Exception) {}
     }
 
     private fun findNodeByTextAny(node: AccessibilityNodeInfo, texts: List<String>): AccessibilityNodeInfo? {
@@ -819,11 +812,10 @@ class InDriverAccessibilityService : AccessibilityService() {
             val d = node.contentDescription?.toString() ?: ""
             if (texts.any { t.contains(it) || d.contains(it) }) return node
             for (i in 0 until node.childCount) {
-                val child = try { node.getChild(i) } catch (e: Exception) { null } ?: continue
-                val found = findNodeByTextAny(child, texts)
-                if (found != null) return found
+                val child = try { node.getChild(i) } catch (_: Exception) { null } ?: continue
+                findNodeByTextAny(child, texts)?.let { return it }
             }
-        } catch (e: Exception) { /* игнорируем */ }
+        } catch (_: Exception) {}
         return null
     }
 
@@ -831,11 +823,10 @@ class InDriverAccessibilityService : AccessibilityService() {
         try {
             if (node.isClickable && node.childCount > 2) return node
             for (i in 0 until node.childCount) {
-                val child = try { node.getChild(i) } catch (e: Exception) { null } ?: continue
-                val found = findFirstClickableCard(child)
-                if (found != null) return found
+                val child = try { node.getChild(i) } catch (_: Exception) { null } ?: continue
+                findFirstClickableCard(child)?.let { return it }
             }
-        } catch (e: Exception) { /* игнорируем */ }
+        } catch (_: Exception) {}
         return null
     }
 }

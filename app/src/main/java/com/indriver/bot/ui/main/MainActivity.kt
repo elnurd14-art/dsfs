@@ -421,18 +421,19 @@ class MainActivity : AppCompatActivity() {
     private fun updateModeUI() {
         val mode = prefs.getMode()
 
-        // Режим: Город
+        // Режим: Весь салон
         val allSel      = mode == PreferenceManager.MODE_ALL
         val intercitySel = mode == PreferenceManager.MODE_INTERCITY
         val carpoolSel  = mode == PreferenceManager.MODE_CARPOOL
 
-        setModeTab(binding.btnModeAll,       allSel,       "Город")
+        setModeTab(binding.btnModeAll,       allSel,       "Весь салон")
         setModeTab(binding.btnModeIntercity, intercitySel, "Посылки")
         setModeTab(binding.btnModeCarpool,   carpoolSel,   "Попутки")
 
         val desc = when (mode) {
-            PreferenceManager.MODE_INTERCITY -> "Бот принимает только посылки межгород (вкладка Попутки)"
-            PreferenceManager.MODE_CARPOOL   -> "Бот кликает карточку попутчика в ленте"
+            PreferenceManager.MODE_ALL       -> "Все типы: Весь салон, Посылки, Попутчики"
+            PreferenceManager.MODE_INTERCITY -> "Только посылки межгород (вкладка Попутки)"
+            PreferenceManager.MODE_CARPOOL   -> "Только попутчики (вкладка Попутки)"
             else                             -> ""
         }
         binding.tvModeDesc.text = desc
