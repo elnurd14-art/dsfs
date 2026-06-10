@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "565253325936",
+    "firebase_url": "https://taksa-d8beb-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "taksa-d8beb",
+    "storage_bucket": "taksa-d8beb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:565253325936:android:e09bb0d44638d01f92a0b5",
+        "android_client_info": {
+          "package_name": "com.indriver.bot"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSgCp313Qk7pBRzueeTuMgVKRL-pZortc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

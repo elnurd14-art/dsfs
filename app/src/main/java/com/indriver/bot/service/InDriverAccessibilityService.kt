@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.net.Uri
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -50,19 +51,28 @@ class InDriverAccessibilityService : AccessibilityService() {
 
     private lateinit var prefs: PreferenceManager
     private lateinit var logger: OrderLogger
-    private val handler = Handler(Looper.getMainLooper())
+
+    // ── Главный поток: только UI-операции (Toast, уведомления) ───────
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // ── Фоновый поток для тяжёлого парсинга ─────────────────────────
+    private val bgThread = HandlerThread("TaksaScanner").also { it.start() }
+    private val bgHandler = Handler(bgThread.looper)
 
     private var lastCallTime    = 0L
     private val MIN_CALL_INTERVAL = 15_000L
 
-    // Антифлуд: хэш экрана + таймер сброса
-    private var lastScreenHash    = 0
-    private var lastScreenHashTs  = 0L
-    private val HASH_RESET_MS     = 30_000L  // сбрасываем хэш через 30 сек
+    // Антифлуд — сбрасываем хэш каждые 30 сек
+    private var lastScreenHash   = 0
+    private var lastScreenHashTs = 0L
+    private val HASH_RESET_MS    = 30_000L
+
+    // Флаг: сканирование уже идёт — не запускаем второе
+    @Volatile private var scanInProgress = false
 
     private val processedOrders = mutableSetOf<Int>()
 
-    // Watchdog: если нет событий от inDrive > 5 мин — уведомляем
+    // Watchdog: нет событий от inDrive > 5 мин
     private var lastIndriveEventTs = 0L
     private val WATCHDOG_MS = 5 * 60_000L
     private val watchdogRunnable = object : Runnable {
@@ -76,7 +86,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                     )
                 }
             }
-            handler.postDelayed(this, 60_000L)
+            mainHandler.postDelayed(this, 60_000L)
         }
     }
 
@@ -91,10 +101,10 @@ class InDriverAccessibilityService : AccessibilityService() {
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
                     AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
-            notificationTimeout = 50
+            notificationTimeout = 0        // ← было 50мс — убираем искусственную задержку
             packageNames = arrayOf(PACKAGE_OLD, PACKAGE_NEW, "com.indriver.driver")
         }
-        handler.postDelayed(watchdogRunnable, 60_000L)
+        mainHandler.postDelayed(watchdogRunnable, 60_000L)
         Log.d(TAG, "Такса подключена")
     }
 
@@ -108,7 +118,7 @@ class InDriverAccessibilityService : AccessibilityService() {
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
-            AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> scanScreen()
+            AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> scheduleBackgroundScan()
         }
     }
 
@@ -116,11 +126,29 @@ class InDriverAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        handler.removeCallbacks(watchdogRunnable)
+        mainHandler.removeCallbacks(watchdogRunnable)
+        bgThread.quitSafely()
     }
 
     // ================================================================
-    //  СКАНИРОВАНИЕ ЭКРАНА
+    //  ПЛАНИРОВЩИК: кидаем сканирование в фоновый поток
+    //  Если предыдущее ещё не закончилось — пропускаем (не копим очередь)
+    // ================================================================
+    private fun scheduleBackgroundScan() {
+        if (scanInProgress) return          // не копим очередь событий
+        bgHandler.post {
+            if (scanInProgress) return@post // double-check в фоне
+            scanInProgress = true
+            try {
+                scanScreen()
+            } finally {
+                scanInProgress = false
+            }
+        }
+    }
+
+    // ================================================================
+    //  СКАНИРОВАНИЕ ЭКРАНА  (выполняется в bgThread)
     // ================================================================
     private fun scanScreen() {
         val root = rootInActiveWindow ?: return
@@ -132,7 +160,6 @@ class InDriverAccessibilityService : AccessibilityService() {
         val fullText = texts.joinToString(" | ")
         val hash = fullText.hashCode()
 
-        // Антифлуд: пропускаем одинаковый экран, но сбрасываем через HASH_RESET_MS
         val now = System.currentTimeMillis()
         if (hash == lastScreenHash) {
             if (now - lastScreenHashTs < HASH_RESET_MS) return
@@ -178,10 +205,6 @@ class InDriverAccessibilityService : AccessibilityService() {
             collectAllText(cardNode, cardTexts)
             val cardText = cardTexts.joinToString(" | ")
 
-            // ── Умный парсинг цены ──────────────────────────────────
-            // Сначала ищем цену в специфичном ценовом узле карточки,
-            // затем по контексту (число стоит отдельно, не в слове),
-            // и только последним — общий regex.
             val price = extractPriceSmartFromNode(cardNode)
                      ?: extractPriceSmart(cardText)
                      ?: 0.0
@@ -197,7 +220,6 @@ class InDriverAccessibilityService : AccessibilityService() {
                     if (isParcel) { logMissed(orderType, price, "", "", "Режим: только попутчики"); continue }
             }
 
-            // Города — только из этой карточки
             val cityFrom = PreferenceManager.KZ_CITIES.firstOrNull {
                 cardText.contains(it, ignoreCase = true)
             } ?: "Астана"
@@ -208,7 +230,6 @@ class InDriverAccessibilityService : AccessibilityService() {
             val cardKey = "${price.toInt()}_${cardText.take(80)}".hashCode()
             if (processedOrders.contains(cardKey)) continue
 
-            // Фильтр цены
             val priceMode  = if (isParcel) prefs.getIntercityPriceMode() else prefs.getCarpoolPriceMode()
             val minPrice   = if (isParcel) prefs.getMinIntercityPrice()  else prefs.getMinCarpoolPrice()
             val fixedPrice = if (isParcel) prefs.getFixedIntercityPrice() else prefs.getFixedCarpoolPrice()
@@ -226,7 +247,6 @@ class InDriverAccessibilityService : AccessibilityService() {
                 continue
             }
 
-            // Фильтр городов
             if (prefs.isCityFilterEnabled() && cityTo.isNotEmpty()) {
                 if (prefs.getAllowedCities().none { cityTo.contains(it, ignoreCase = true) }) {
                     logMissed(orderType, price, cityFrom, cityTo, "Город '$cityTo' не разрешён")
@@ -235,7 +255,6 @@ class InDriverAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // ── Принят ──────────────────────────────────────────────
             processedOrders.add(cardKey)
             if (processedOrders.size > 200) processedOrders.clear()
 
@@ -256,28 +275,40 @@ class InDriverAccessibilityService : AccessibilityService() {
                 "", cityFrom, cityTo, cityFrom, cityTo, "", true, orderType, cardText)
             onOrderDetected?.invoke(info)
 
-            // Уведомление в шторке + вибрация
             val notifText = "$orderType — ${price.toInt()} T" +
                 if (cityFrom.isNotEmpty() || cityTo.isNotEmpty()) "\n$cityFrom -> $cityTo" else ""
             BotService.showOrderNotification(applicationContext, "Такса нашла заказ!", notifText)
-            vibrate()
+
+            mainHandler.post { vibrate() }
+
             BotService.updateBotNotification(applicationContext,
                 "Последний: ${price.toInt()} T — $orderType")
 
+            // ── КЛИК БЕЗ ЗАДЕРЖКИ — сразу открываем карточку ────────
             val capturedNode = cardNode
-            handler.postDelayed({
+            val delayMs = prefs.getCallDelayMs()
+            if (delayMs <= 0L) {
+                // Мгновенно — прямо в этом же фоновом потоке
                 val clicked = performClickOnCard(capturedNode)
                 if (!clicked) {
-                    // Повторная попытка через 1 секунду
-                    handler.postDelayed({
+                    mainHandler.postDelayed({
                         if (!tapCardByPrice(price.toInt().toString())) {
-                            handler.post {
+                            showToast("Подходящий заказ ${price.toInt()} T — нажмите сами!")
+                        }
+                    }, 800L)
+                }
+            } else {
+                mainHandler.postDelayed({
+                    val clicked = performClickOnCard(capturedNode)
+                    if (!clicked) {
+                        mainHandler.postDelayed({
+                            if (!tapCardByPrice(price.toInt().toString())) {
                                 showToast("Подходящий заказ ${price.toInt()} T — нажмите сами!")
                             }
-                        }
-                    }, 1000L)
-                }
-            }, prefs.getCallDelayMs())
+                        }, 800L)
+                    }
+                }, delayMs)
+            }
 
             break
         }
@@ -285,8 +316,6 @@ class InDriverAccessibilityService : AccessibilityService() {
 
     // ================================================================
     //  УМНЫЙ ПАРСИНГ ЦЕНЫ — узел
-    //  Ищем TextView, который содержит ТОЛЬКО число + ₸,
-    //  без лишнего текста рядом. Это поле цены в карточке.
     // ================================================================
     private fun extractPriceSmartFromNode(cardNode: AccessibilityNodeInfo): Double? {
         val priceNodes = mutableListOf<AccessibilityNodeInfo>()
@@ -294,7 +323,6 @@ class InDriverAccessibilityService : AccessibilityService() {
 
         for (node in priceNodes) {
             val text = node.text?.toString() ?: continue
-            // Текст должен быть короткий и содержать ₸
             if (text.length > 30) continue
             val cleaned = text.replace(Regex("[\\s₸Т]"), "")
             val value = cleaned.toDoubleOrNull() ?: continue
@@ -306,7 +334,6 @@ class InDriverAccessibilityService : AccessibilityService() {
     private fun collectPriceNodes(node: AccessibilityNodeInfo, result: MutableList<AccessibilityNodeInfo>) {
         try {
             val text = node.text?.toString() ?: ""
-            // Ценовой узел: содержит ₸ и цифры, короткий, не кликабельный (не кнопка)
             if (text.contains("₸") && text.any { it.isDigit() } &&
                 !node.isClickable && node.childCount == 0) {
                 result.add(node)
@@ -320,39 +347,21 @@ class InDriverAccessibilityService : AccessibilityService() {
 
     // ================================================================
     //  УМНЫЙ ПАРСИНГ ЦЕНЫ — текст
-    //  Фильтрует числа которые являются количеством предметов,
-    //  номерами домов, или другими нечисловыми значениями.
-    //  Правила:
-    //  1. Цена стоит прямо перед ₸ (или ₸ прямо после числа)
-    //  2. Число не предшествует словам "коробк", "место", "чел", "адам", "орын"
-    //  3. Минимум 3 цифры (минимальная цена 500 T — всегда 3+ цифры)
     // ================================================================
     private fun extractPriceSmart(text: String): Double? {
-        // Убираем ₸/км чтобы не спутать с основной ценой
-        val cleaned = text.replace(Regex("""\d+[.,]\d+\s*[₸Т]/км"""), "SKIP")
-
-        // Разбиваем на сегменты — ищем "число ₸"
-        val pattern = Regex("""(\d[\d\s]{2,7})\s*[₸Т](?!\s*/\s*км)""")
+        val cleaned = text.replace(Regex("""\\d+[.,]\\d+\\s*[₸Т]/км"""), "SKIP")
+        val pattern = Regex("""(\\d[\\d\\s]{2,7})\\s*[₸Т](?!\\s*/\\s*км)""")
         for (match in pattern.findAll(cleaned)) {
             val raw = match.groupValues[1].replace(Regex("\\s"), "")
             val value = raw.toDoubleOrNull() ?: continue
             if (value < 500.0 || value > 9_999_999.0) continue
-
-            // Проверяем контекст после числа — не должно быть слов-счётчиков
-            val afterMatch = cleaned.substring(match.range.last + 1)
-                .take(40).lowercase()
-            val badContext = listOf(
-                "коробк", "место", "чел ", "адам", "орын",
-                "кг", "литр", "штук", "пакет"
-            )
+            val afterMatch = cleaned.substring(match.range.last + 1).take(40).lowercase()
+            val badContext = listOf("коробк", "место", "чел ", "адам", "орын", "кг", "литр", "штук", "пакет")
             if (badContext.any { afterMatch.contains(it) }) continue
-
-            // Проверяем что перед числом нет нежелательного контекста
             val beforeStart = maxOf(0, match.range.first - 30)
             val beforeMatch = cleaned.substring(beforeStart, match.range.first).lowercase()
             val badBefore = listOf("везу", "вес ", "объём", "размер")
             if (badBefore.any { beforeMatch.contains(it) }) continue
-
             return value
         }
         return null
@@ -395,7 +404,7 @@ class InDriverAccessibilityService : AccessibilityService() {
         return try {
             if (cardNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 prefs.incrementCalls()
-                handler.post { showToast("Открываю карточку — inDrive звонит!") }
+                mainHandler.post { showToast("Открываю карточку — inDrive звонит!") }
                 return true
             }
             var parent = try { cardNode.parent } catch (e: Exception) { null }
@@ -405,7 +414,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 val p = parent ?: return@repeat
                 if (p.isClickable && p.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                     prefs.incrementCalls()
-                    handler.post { showToast("Открываю карточку — inDrive звонит!") }
+                    mainHandler.post { showToast("Открываю карточку — inDrive звонит!") }
                     found = true
                 }
                 parent = try { p.parent } catch (e: Exception) { null }
@@ -432,7 +441,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 }
                 if (clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) {
                     prefs.incrementCalls()
-                    handler.post { showToast("Кликнул заказ $priceStr T") }
+                    mainHandler.post { showToast("Кликнул заказ $priceStr T") }
                     return true
                 }
             }
@@ -484,7 +493,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 ))
 
                 onOrderDetected?.invoke(info)
-                vibrate()
+                mainHandler.post { vibrate() }
 
                 val notifText = "${info.orderType} — ${info.price.toInt()} T" +
                     if (info.addressFrom.isNotEmpty()) "\n${info.addressFrom.take(40)}" else ""
@@ -554,7 +563,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 info.cityFrom, info.cityTo, "ПРИНЯТ", ""
             ))
             onOrderDetected?.invoke(info)
-            vibrate()
+            mainHandler.post { vibrate() }
             BotService.showOrderNotification(applicationContext,
                 "Такса нашла заказ!", "${info.price.toInt()} T — ${info.orderType}")
             if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty()) scheduleCall(info.phone)
@@ -719,7 +728,6 @@ class InDriverAccessibilityService : AccessibilityService() {
     // ================================================================
     private fun vibrate() {
         try {
-            @Suppress("DEPRECATION")
             val vibrator = getSystemService(Vibrator::class.java)
             if (vibrator?.hasVibrator() == true) {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -746,7 +754,12 @@ class InDriverAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         if (now - lastCallTime < MIN_CALL_INTERVAL) return
         lastCallTime = now
-        handler.postDelayed({ makeCall(phone) }, prefs.getCallDelayMs())
+        val delayMs = prefs.getCallDelayMs()
+        if (delayMs <= 0L) {
+            makeCall(phone)     // звоним сразу в текущем потоке
+        } else {
+            mainHandler.postDelayed({ makeCall(phone) }, delayMs)
+        }
     }
 
     private fun makeCall(phone: String) {
@@ -757,9 +770,9 @@ class InDriverAccessibilityService : AccessibilityService() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             })
             prefs.incrementCalls()
-            handler.post { showToast("Звоним: $clean") }
+            mainHandler.post { showToast("Звоним: $clean") }
         } catch (e: SecurityException) {
-            handler.post { showToast("Нет разрешения на звонки") }
+            mainHandler.post { showToast("Нет разрешения на звонки") }
         } catch (e: Exception) {
             Log.e(TAG, "makeCall: ${e.message}")
         }

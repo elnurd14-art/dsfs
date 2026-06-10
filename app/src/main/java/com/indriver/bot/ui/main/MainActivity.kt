@@ -20,7 +20,9 @@ import com.indriver.bot.databinding.DialogFiltersBinding
 import com.indriver.bot.service.BotService
 import com.indriver.bot.service.InDriverAccessibilityService
 import com.indriver.bot.ui.log.LogActivity
+import com.indriver.bot.ui.activation.ActivationActivity
 import com.indriver.bot.ui.onboarding.OnboardingActivity
+import com.indriver.bot.utils.ActivationManager
 import com.indriver.bot.utils.OrderLogger
 import com.indriver.bot.utils.PermissionHelper
 import com.indriver.bot.utils.PreferenceManager
@@ -49,6 +51,15 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         prefs  = PreferenceManager(this)
         logger = OrderLogger(this)
+
+        // Проверяем активацию — до онбординга
+        if (!ActivationManager.isActivated(this)) {
+            startActivity(Intent(this, ActivationActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
 
         // Показываем онбординг при первом запуске
         val appPrefs = getSharedPreferences("taksa_prefs", MODE_PRIVATE)
