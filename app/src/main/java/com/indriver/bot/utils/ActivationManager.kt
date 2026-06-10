@@ -3,34 +3,31 @@ package com.indriver.bot.utils
 import android.content.Context
 import android.content.SharedPreferences
 import android.provider.Settings
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ServerValue
+import com.google.firebase.database.MutableData
+import com.google.firebase.database.Transaction
 
 /**
- * Активация с проверкой через Firebase Realtime Database.
+ * Активация через Firebase Realtime Database.
  *
  * Структура в Firebase:
  *   codes/
- *     TAKSA-XXXXX: ""           ← код свободен
- *     TAKSA-YYYYY: "androidId"  ← код занят устройством
+ *     TAKSA-XXXXX: ""           ← свободен
+ *     TAKSA-YYYYY: "androidId"  ← занят устройством
  *
- * Правила Firebase (установить в консоли):
+ * Правила Firebase:
  *   {
  *     "rules": {
  *       "codes": {
  *         "$code": {
  *           ".read": true,
- *           ".write": "!data.exists()"
+ *           ".write": "!data.exists() || data.val() == ''"
  *         }
  *       }
  *     }
  *   }
- *
- * Логика activate():
- *   1. Код не существует в базе → Invalid
- *   2. Код существует, значение "" → свободен, пишем свой deviceId (атомарно через transaction)
- *   3. Код существует, значение == наш deviceId → уже наш, восстанавливаем локально
- *   4. Код существует, значение != наш deviceId → занят другим устройством
  */
 object ActivationManager {
 
@@ -45,39 +42,33 @@ object ActivationManager {
     private fun deviceId(ctx: Context): String =
         Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
 
-    /** Приложение уже активировано локально и deviceId совпадает */
     fun isActivated(ctx: Context): Boolean {
         val p = prefs(ctx)
         if (!p.getBoolean(KEY_ACTIVE, false)) return false
-        val saved = p.getString(KEY_ACT_DEVICE, "") ?: ""
-        return saved == deviceId(ctx)
+        return (p.getString(KEY_ACT_DEVICE, "") ?: "") == deviceId(ctx)
     }
 
     sealed class Result {
-        object Success         : Result()
-        object RestoredDevice  : Result()  // код наш, восстановили активацию
-        object UsedOtherDevice : Result()  // код занят другим телефоном
-        object Invalid         : Result()  // кода нет в базе
-        object NetworkError    : Result()  // нет интернета / timeout
-        object AlreadyActivated: Result()
+        object Success          : Result()
+        object RestoredDevice   : Result()  // переустановка на том же телефоне
+        object UsedOtherDevice  : Result()  // код занят другим телефоном
+        object Invalid          : Result()  // кода нет в базе
+        object NetworkError     : Result()  // нет интернета
+        object AlreadyActivated : Result()
     }
 
-    /**
-     * Проверяем код через Firebase.
-     * Callback вызывается в главном потоке.
-     */
     fun activate(ctx: Context, rawCode: String, callback: (Result) -> Unit) {
         if (isActivated(ctx)) { callback(Result.AlreadyActivated); return }
 
         val code = rawCode.trim().uppercase()
         if (code.isBlank()) { callback(Result.Invalid); return }
 
-        val me = deviceId(ctx)
+        val me  = deviceId(ctx)
         val ref = FirebaseDatabase.getInstance()
             .getReference("codes")
             .child(code)
 
-        // Читаем текущее значение
+        // Сначала читаем — существует ли код вообще
         ref.get().addOnCompleteListener { task ->
             if (!task.isSuccessful) {
                 callback(Result.NetworkError)
@@ -86,7 +77,6 @@ object ActivationManager {
 
             val snapshot = task.result
             if (!snapshot.exists()) {
-                // Кода нет в базе вообще
                 callback(Result.Invalid)
                 return@addOnCompleteListener
             }
@@ -94,32 +84,46 @@ object ActivationManager {
             val owner = snapshot.getValue(String::class.java) ?: ""
 
             when {
-                owner.isEmpty() -> {
-                    // Код свободен — пытаемся занять атомарно
-                    ref.setValue(me).addOnCompleteListener { writeTask ->
-                        if (writeTask.isSuccessful) {
-                            saveLocalActivation(ctx, code, me)
-                            callback(Result.Success)
-                        } else {
-                            // Правило ".write": "!data.exists()" сработало — кто-то занял раньше
-                            callback(Result.UsedOtherDevice)
-                        }
-                    }
-                }
                 owner == me -> {
-                    // Код уже наш (переустановка)
-                    saveLocalActivation(ctx, code, me)
+                    // Наш код (переустановка) — восстанавливаем локально
+                    saveLocal(ctx, code, me)
                     callback(Result.RestoredDevice)
                 }
-                else -> {
-                    // Код занят другим устройством
+                owner.isNotEmpty() -> {
+                    // Занят другим устройством
                     callback(Result.UsedOtherDevice)
+                }
+                else -> {
+                    // Свободен ("") — занимаем через транзакцию
+                    ref.runTransaction(object : Transaction.Handler {
+                        override fun doTransaction(data: MutableData): Transaction.Result {
+                            val current = data.getValue(String::class.java) ?: ""
+                            return if (current.isEmpty()) {
+                                data.value = me          // атомарно записываем наш ID
+                                Transaction.success(data)
+                            } else {
+                                Transaction.abort()      // кто-то успел раньше
+                            }
+                        }
+
+                        override fun onComplete(
+                            error: DatabaseError?,
+                            committed: Boolean,
+                            snapshot: DataSnapshot?
+                        ) {
+                            when {
+                                error != null  -> callback(Result.NetworkError)
+                                committed      -> { saveLocal(ctx, code, me); callback(Result.Success) }
+                                else           -> callback(Result.UsedOtherDevice)
+                            }
+                        }
+                    })
                 }
             }
         }
     }
 
-    private fun saveLocalActivation(ctx: Context, code: String, device: String) {
+    private fun saveLocal(ctx: Context, code: String, device: String) {
         prefs(ctx).edit()
             .putBoolean(KEY_ACTIVE, true)
             .putString(KEY_ACT_CODE, code)
