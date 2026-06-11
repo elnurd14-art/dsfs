@@ -226,11 +226,13 @@ class InDriverAccessibilityService : AccessibilityService() {
 
             // Фильтр по режиму
             when (mode) {
+                PreferenceManager.MODE_ALL ->
+                    // "Весь салон" — только карточки с меткой "Весь салон", не попутчики
+                    if (!isFullSalon && !isParcel) { logMissed(orderType, 0.0, "", "", "Режим: только Весь салон"); continue }
                 PreferenceManager.MODE_INTERCITY ->
                     if (!isParcel) { logMissed(orderType, 0.0, "", "", "Режим: только посылки"); continue }
                 PreferenceManager.MODE_CARPOOL ->
                     if (isParcel || isFullSalon) { logMissed(orderType, 0.0, "", "", "Режим: только попутчики"); continue }
-                PreferenceManager.MODE_ALL -> { /* принимаем всё */ }
             }
 
             // Цена
@@ -239,13 +241,21 @@ class InDriverAccessibilityService : AccessibilityService() {
                      ?: 0.0
             if (price <= 0) continue
 
-            // Города
-            val cityFrom = PreferenceManager.KZ_CITIES.firstOrNull {
-                cardText.contains(it, ignoreCase = true)
-            } ?: "Астана"
-            val cityTo = PreferenceManager.KZ_CITIES.firstOrNull {
-                cardText.contains(it, ignoreCase = true) && !it.equals(cityFrom, ignoreCase = true)
-            } ?: ""
+            // Города — извлекаем из адресных строк, не из сырого текста
+            val addressFrom = extractAddressFrom(cardText)
+            val addressTo   = extractAddressTo(cardText)
+            val cityFrom    = extractCityFromAddress(addressFrom)
+                .ifEmpty {
+                    // Fallback: первый город в тексте карточки
+                    PreferenceManager.KZ_CITIES.firstOrNull { cardText.contains(it, ignoreCase = true) } ?: "Астана"
+                }
+            val cityTo      = extractCityFromAddress(addressTo)
+                .ifEmpty {
+                    // Fallback: второй отличный от cityFrom город
+                    PreferenceManager.KZ_CITIES.firstOrNull {
+                        cardText.contains(it, ignoreCase = true) && !it.equals(cityFrom, ignoreCase = true)
+                    } ?: ""
+                }
 
             // Антидубль
             val cardKey = "${price.toInt()}_${cardText.take(80)}".hashCode()
@@ -270,7 +280,14 @@ class InDriverAccessibilityService : AccessibilityService() {
             }
 
             // Фильтр города назначения
-            if (prefs.isCityFilterEnabled() && cityTo.isNotEmpty()) {
+            if (prefs.isCityFilterEnabled()) {
+                if (cityTo.isEmpty()) {
+                    // Город не распознан — пропускаем только если разрешён "Другой/Неизвестный"
+                    // По умолчанию блокируем нераспознанные направления
+                    logMissed(orderType, price, cityFrom, cityTo, "Город назначения не распознан")
+                    prefs.incrementMissed()
+                    continue
+                }
                 if (prefs.getAllowedCities().none { cityTo.contains(it, ignoreCase = true) }) {
                     logMissed(orderType, price, cityFrom, cityTo, "Город '$cityTo' не разрешён")
                     prefs.incrementMissed()
@@ -641,8 +658,31 @@ class InDriverAccessibilityService : AccessibilityService() {
         line.contains("Кошелёк") || line.contains("Спрос") ||
         line.contains("Создано ") || reDate.containsMatchIn(line.lowercase())
 
-    private fun extractCityFromAddress(address: String): String =
-        PreferenceManager.KZ_CITIES.firstOrNull { address.contains(it, ignoreCase = true) } ?: ""
+    private fun extractCityFromAddress(address: String): String {
+        // Прямое совпадение с городом
+        PreferenceManager.KZ_CITIES.firstOrNull {
+            address.contains(it, ignoreCase = true)
+        }?.let { return it }
+        // Известные ориентиры → город
+        val landmarks = mapOf(
+            "нурсултан назарбаев"   to "Астана",
+            "астана халык аренасы"  to "Астана",
+            "байтерек"              to "Астана",
+            "хан шатыр"             to "Астана",
+            "алматы арена"          to "Алматы",
+            "медеу"                 to "Алматы",
+            "шымбулак"              to "Алматы",
+            "коктобе"               to "Алматы",
+            "железнодорожный вокзал г. кара" to "Караганда",
+            "баянаульский"          to "Павлодар",
+            "автовокзал тараз"      to "Тараз"
+        )
+        val lower = address.lowercase()
+        for ((key, city) in landmarks) {
+            if (lower.contains(key)) return city
+        }
+        return ""
+    }
 
     private fun extractPaymentType(text: String): String = when {
         text.contains("Kaspi",   ignoreCase = true) -> "Kaspi"
@@ -708,7 +748,9 @@ class InDriverAccessibilityService : AccessibilityService() {
         }
 
         // Фильтр города
-        if (prefs.isCityFilterEnabled() && info.cityTo.isNotEmpty()) {
+        if (prefs.isCityFilterEnabled()) {
+            if (info.cityTo.isEmpty())
+                return false to "Город назначения не распознан"
             if (prefs.getAllowedCities().none { info.cityTo.contains(it, ignoreCase = true) })
                 return false to "Город '${info.cityTo}' не разрешён"
         }

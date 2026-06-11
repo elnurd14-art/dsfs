@@ -431,7 +431,7 @@ class MainActivity : AppCompatActivity() {
         setModeTab(binding.btnModeCarpool,   carpoolSel,   "Попутки")
 
         val desc = when (mode) {
-            PreferenceManager.MODE_ALL       -> "Все типы: Весь салон, Посылки, Попутчики"
+            PreferenceManager.MODE_ALL       -> "Только заказы с меткой Весь салон"
             PreferenceManager.MODE_INTERCITY -> "Только посылки межгород (вкладка Попутки)"
             PreferenceManager.MODE_CARPOOL   -> "Только попутчики (вкладка Попутки)"
             else                             -> ""
