@@ -70,11 +70,11 @@ class PreferenceManager(context: Context) {
 
     // ===== СТАТИСТИКА =====
     fun getAcceptedCount(): Int = prefs.getInt("stat_accepted", 0)
-    fun incrementAccepted() = prefs.edit().putInt("stat_accepted", getAcceptedCount() + 1).apply()
+    @Synchronized fun incrementAccepted() = prefs.edit().putInt("stat_accepted", getAcceptedCount() + 1).commit()
     fun getMissedCount(): Int = prefs.getInt("stat_missed", 0)
-    fun incrementMissed() = prefs.edit().putInt("stat_missed", getMissedCount() + 1).apply()
+    @Synchronized fun incrementMissed() = prefs.edit().putInt("stat_missed", getMissedCount() + 1).commit()
     fun getCallCount(): Int = prefs.getInt("stat_calls", 0)
-    fun incrementCalls() = prefs.edit().putInt("stat_calls", getCallCount() + 1).apply()
+    @Synchronized fun incrementCalls() = prefs.edit().putInt("stat_calls", getCallCount() + 1).commit()
     fun getTotalEarnings(): Double = prefs.getFloat("stat_earnings", 0f).toDouble()
     fun addEarnings(amount: Double) =
         prefs.edit().putFloat("stat_earnings", (getTotalEarnings() + amount).toFloat()).apply()
@@ -88,6 +88,13 @@ class PreferenceManager(context: Context) {
         .putInt("stat_accepted", 0).putInt("stat_missed", 0)
         .putInt("stat_calls", 0).putFloat("stat_earnings", 0f)
         .putString("last_order_info", "").apply()
+
+    // ===== WHATSAPP =====
+    fun isWaEnabled(): Boolean = prefs.getBoolean("wa_enabled", false)
+    fun setWaEnabled(v: Boolean) = prefs.edit().putBoolean("wa_enabled", v).apply()
+    fun getWaTemplate(): String = prefs.getString("wa_template",
+        "Здравствуйте! Еду к вам по заказу inDrive.") ?: "Здравствуйте! Еду к вам по заказу inDrive."
+    fun setWaTemplate(v: String) = prefs.edit().putString("wa_template", v).apply()
 
     // ===== BLACKLIST =====
     fun getBlacklist(): Set<String> =

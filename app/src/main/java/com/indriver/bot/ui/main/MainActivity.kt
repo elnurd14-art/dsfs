@@ -34,9 +34,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var logger: OrderLogger
 
     companion object {
-        private const val REQ_OVERLAY      = 1001
-        private const val REQ_ACCESSIBILITY = 1002
-        private const val REQ_CALL         = 1003
+        private const val REQ_OVERLAY       = 1001
+        private const val REQ_ACCESSIBILITY  = 1002
+        private const val REQ_CALL           = 1003
+        private const val REQ_PHONE_STATE    = 1004
 
         // Цвета тёмной темы
         private const val COLOR_ACTIVE_BG   = 0xFF00C853.toInt()  // зелёный
@@ -78,9 +79,10 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 val sb = StringBuilder()
                 when (info.orderType) {
-                    "Попутчики" -> sb.append("ПОПУТЧИК\n")
-                    "Посылка"   -> sb.append("ПОСЫЛКА\n")
-                    else        -> sb.append("ГОРОД\n")
+                    "Попутчики"  -> sb.append("ПОПУТЧИК\n")
+                    "Посылка"    -> sb.append("ПОСЫЛКА\n")
+                    "Весь салон" -> sb.append("ВЕСЬ САЛОН\n")
+                    else         -> sb.append("${info.orderType.uppercase()}\n")
                 }
                 if (info.price > 0) sb.append("${info.price.toInt()} T\n")
                 if (info.cityFrom.isNotEmpty() && info.cityTo.isNotEmpty())
@@ -160,6 +162,26 @@ class MainActivity : AppCompatActivity() {
 
         // Задержка звонка
         binding.btnCallDelayEdit.setOnClickListener { showCallDelayDialog() }
+
+        // WhatsApp
+        binding.switchWaEnabled.isChecked = prefs.isWaEnabled()
+        binding.switchWaEnabled.setOnCheckedChangeListener { _, isChecked ->
+            prefs.setWaEnabled(isChecked)
+            if (isChecked) requestPhoneStatePermission()
+        }
+        binding.btnSaveWaTemplate.setOnClickListener {
+            val text = binding.etWaTemplate.text?.toString()?.trim() ?: ""
+            if (text.isNotEmpty()) {
+                prefs.setWaTemplate(text)
+                binding.etWaTemplate.clearFocus()
+                (getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                    as? android.view.inputmethod.InputMethodManager)
+                    ?.hideSoftInputFromWindow(binding.etWaTemplate.windowToken, 0)
+                android.widget.Toast.makeText(this, "Шаблон сохранён", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(this, "Введите текст сообщения", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
 
         // Статистика — открывает журнал
         binding.btnStats.setOnClickListener {
@@ -400,6 +422,9 @@ class MainActivity : AppCompatActivity() {
         binding.tvSelectedCities.alpha = if (cityOn) 1.0f else 0.5f
         binding.btnEditCities.isEnabled = cityOn
         binding.switchAutoCall.isChecked = prefs.isAutoCallEnabled()
+        binding.switchWaEnabled.isChecked = prefs.isWaEnabled()
+        if (binding.etWaTemplate.text.isNullOrEmpty())
+            binding.etWaTemplate.setText(prefs.getWaTemplate())
 
         val last = prefs.getLastOrderInfo()
         if (last.isNotEmpty()) binding.tvLastOrder.text = last
@@ -541,6 +566,15 @@ class MainActivity : AppCompatActivity() {
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 this, arrayOf(Manifest.permission.CALL_PHONE), REQ_CALL
+            )
+        }
+    }
+
+    private fun requestPhoneStatePermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.READ_PHONE_STATE), REQ_PHONE_STATE
             )
         }
     }
