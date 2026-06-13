@@ -9,12 +9,12 @@ class PreferenceManager(context: Context) {
         context.getSharedPreferences("indrive_bot_prefs", Context.MODE_PRIVATE)
 
     // ===== РЕЖИМ =====
-    fun getMode(): String = prefs.getString("mode", MODE_ALL) ?: MODE_ALL
+    fun getMode(): String = prefs.getString("mode", MODE_CARPOOL) ?: MODE_CARPOOL
     fun setMode(v: String) = prefs.edit().putString("mode", v).apply()
 
     // ===== ФИЛЬТР ГОРОДСКАЯ ДОСТАВКА =====
     // mode: "off" | "min" | "fixed"
-    fun getCityPriceMode(): String = prefs.getString("city_price_mode", PRICE_MIN) ?: PRICE_MIN
+    fun getCityPriceMode(): String = prefs.getString("city_price_mode", PRICE_OFF) ?: PRICE_OFF
     fun setCityPriceMode(v: String) = prefs.edit().putString("city_price_mode", v).apply()
     fun getMinPrice(): Double = prefs.getFloat("filter_min_price", 2000f).toDouble()
     fun setMinPrice(v: Double) = prefs.edit().putFloat("filter_min_price", v.toFloat()).apply()
@@ -25,7 +25,7 @@ class PreferenceManager(context: Context) {
     fun setMinPriceEnabled(v: Boolean) { if (!v) setCityPriceMode(PRICE_OFF) }
 
     // ===== ФИЛЬТР МЕЖГОРОД ПОСЫЛКИ =====
-    fun getIntercityPriceMode(): String = prefs.getString("intercity_price_mode", PRICE_MIN) ?: PRICE_MIN
+    fun getIntercityPriceMode(): String = prefs.getString("intercity_price_mode", PRICE_OFF) ?: PRICE_OFF
     fun setIntercityPriceMode(v: String) = prefs.edit().putString("intercity_price_mode", v).apply()
     fun getMinIntercityPrice(): Double = prefs.getFloat("filter_min_intercity_price", 5000f).toDouble()
     fun setMinIntercityPrice(v: Double) = prefs.edit().putFloat("filter_min_intercity_price", v.toFloat()).apply()
@@ -36,7 +36,7 @@ class PreferenceManager(context: Context) {
     fun setMinIntercityPriceEnabled(v: Boolean) { if (!v) setIntercityPriceMode(PRICE_OFF) }
 
     // ===== ФИЛЬТР ПОПУТЧИКИ =====
-    fun getCarpoolPriceMode(): String = prefs.getString("carpool_price_mode", PRICE_MIN) ?: PRICE_MIN
+    fun getCarpoolPriceMode(): String = prefs.getString("carpool_price_mode", PRICE_OFF) ?: PRICE_OFF
     fun setCarpoolPriceMode(v: String) = prefs.edit().putString("carpool_price_mode", v).apply()
     fun getMinCarpoolPrice(): Double = prefs.getFloat("filter_min_carpool_price", 5000f).toDouble()
     fun setMinCarpoolPrice(v: Double) = prefs.edit().putFloat("filter_min_carpool_price", v.toFloat()).apply()
@@ -55,7 +55,7 @@ class PreferenceManager(context: Context) {
     fun setCityFilterEnabled(v: Boolean) = prefs.edit().putBoolean("city_filter_on", v).apply()
 
     // ===== АВТО-ЗВОНОК =====
-    fun isAutoCallEnabled(): Boolean = prefs.getBoolean("auto_call_enabled", true)
+    fun isAutoCallEnabled(): Boolean = prefs.getBoolean("auto_call_enabled", false)
     fun setAutoCallEnabled(v: Boolean) = prefs.edit().putBoolean("auto_call_enabled", v).apply()
     fun getCallDelayMs(): Long = prefs.getLong("call_delay_ms", 0L)
     fun setCallDelayMs(v: Long) = prefs.edit().putLong("call_delay_ms", v).apply()
@@ -76,8 +76,8 @@ class PreferenceManager(context: Context) {
     fun getCallCount(): Int = prefs.getInt("stat_calls", 0)
     @Synchronized fun incrementCalls() = prefs.edit().putInt("stat_calls", getCallCount() + 1).commit()
     fun getTotalEarnings(): Double = prefs.getFloat("stat_earnings", 0f).toDouble()
-    fun addEarnings(amount: Double) =
-        prefs.edit().putFloat("stat_earnings", (getTotalEarnings() + amount).toFloat()).apply()
+    @Synchronized fun addEarnings(amount: Double) =
+        prefs.edit().putFloat("stat_earnings", (getTotalEarnings() + amount).toFloat()).commit()
     fun getLastOrderInfo(): String = prefs.getString("last_order_info", "") ?: ""
     fun setLastOrderInfo(info: String) = prefs.edit().putString("last_order_info", info).apply()
     fun getWinRate(): Double {
@@ -92,8 +92,7 @@ class PreferenceManager(context: Context) {
     // ===== WHATSAPP =====
     fun isWaEnabled(): Boolean = prefs.getBoolean("wa_enabled", false)
     fun setWaEnabled(v: Boolean) = prefs.edit().putBoolean("wa_enabled", v).apply()
-    fun getWaTemplate(): String = prefs.getString("wa_template",
-        "Здравствуйте! Еду к вам по заказу inDrive.") ?: "Здравствуйте! Еду к вам по заказу inDrive."
+    fun getWaTemplate(): String = prefs.getString("wa_template", "") ?: ""
     fun setWaTemplate(v: String) = prefs.edit().putString("wa_template", v).apply()
 
     // ===== BLACKLIST =====

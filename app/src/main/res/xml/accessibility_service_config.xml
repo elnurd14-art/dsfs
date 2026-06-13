@@ -3,9 +3,9 @@
     android:description="@string/accessibility_service_description"
     android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagRequestTouchExplorationMode|flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
-    android:notificationTimeout="100"
-    android:packageNames="sinet.startup.inDriver,com.indriver"
+    android:notificationTimeout="0"
+    android:packageNames="sinet.startup.inDriver,com.indriver,com.indriver.driver"
     android:settingsActivity="com.indriver.bot.ui.main.MainActivity" />

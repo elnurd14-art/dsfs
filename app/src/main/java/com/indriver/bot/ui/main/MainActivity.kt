@@ -423,8 +423,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnEditCities.isEnabled = cityOn
         binding.switchAutoCall.isChecked = prefs.isAutoCallEnabled()
         binding.switchWaEnabled.isChecked = prefs.isWaEnabled()
-        if (binding.etWaTemplate.text.isNullOrEmpty())
-            binding.etWaTemplate.setText(prefs.getWaTemplate())
+        binding.etWaTemplate.setText(prefs.getWaTemplate())
 
         val last = prefs.getLastOrderInfo()
         if (last.isNotEmpty()) binding.tvLastOrder.text = last
@@ -606,5 +605,18 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         checkPermissions()
         loadUI()
+        // Восстанавливаем состояние переключателя бота (мог измениться пока activity была на фоне)
+        binding.switchAutoAccept.isChecked = InDriverAccessibilityService.isRunning
+        if (InDriverAccessibilityService.isRunning) {
+            binding.tvStatusLabel.text = "БОТ РАБОТАЕТ"
+            binding.tvStatusDesc.text  = "Слежу за заказами — откройте inDrive"
+            binding.cardBotToggle.background =
+                ContextCompat.getDrawable(this, R.drawable.bg_status_on)
+        } else {
+            binding.tvStatusLabel.text = "БОТ ОСТАНОВЛЕН"
+            binding.tvStatusDesc.text  = "Нажмите переключатель для запуска"
+            binding.cardBotToggle.background =
+                ContextCompat.getDrawable(this, R.drawable.bg_status_off)
+        }
     }
 }

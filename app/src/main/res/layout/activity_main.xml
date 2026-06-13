@@ -828,7 +828,7 @@
                         android:id="@+id/etWaTemplate"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Текст сообщения WhatsApp"
+                        android:hint="Напишите текст (если пусто — откроется пустой чат)"
                         android:inputType="textMultiLine|textCapSentences"
                         android:minLines="2"
                         android:maxLines="5"

@@ -48,6 +48,8 @@ class CallStateManager(private val ctx: Context) {
     private fun handleState(state: Int) {
         Log.d(TAG, "CallState: $state")
         when (state) {
+            // RINGING — входящий звонок, не трогаем pending
+            TelephonyManager.CALL_STATE_RINGING -> { /* не сбрасываем pendingPhone */ }
             TelephonyManager.CALL_STATE_OFFHOOK -> wasOffHook = true
             TelephonyManager.CALL_STATE_IDLE -> {
                 if (wasOffHook) {
@@ -58,6 +60,7 @@ class CallStateManager(private val ctx: Context) {
                         handler.postDelayed({ sendWhatsApp(phone) }, 1500L)
                     }
                 }
+                // Если был входящий (RINGING → IDLE без OFFHOOK) — ничего не делаем
             }
         }
     }
@@ -111,15 +114,24 @@ class CallStateManager(private val ctx: Context) {
 
     private fun sendWhatsApp(phone: String) {
         try {
-            val clean   = normalizePhone(phone)
-            val encoded = Uri.encode(prefs.getWaTemplate())
-            ctx.startActivity(
-                Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://api.whatsapp.com/send?phone=$clean&text=$encoded")).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-            )
-            Log.d(TAG, "WA отправлен: $clean")
+            // phone уже нормализован в setPendingPhone
+            val clean      = phone
+            val digitsOnly = clean.replace("+", "")
+            if (digitsOnly.length < 10) {
+                Log.w(TAG, "sendWhatsApp: номер слишком короткий: $clean")
+                return
+            }
+            val template = prefs.getWaTemplate()
+            // Если шаблон пустой — открываем пустой чат (пользователь сам напишет)
+            val uri = if (template.isNotBlank()) {
+                Uri.parse("https://api.whatsapp.com/send?phone=$clean&text=${Uri.encode(template)}")
+            } else {
+                Uri.parse("https://api.whatsapp.com/send?phone=$clean")
+            }
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
+            Log.d(TAG, "WA открыт: $clean")
         } catch (e: Exception) {
             Log.e(TAG, "sendWhatsApp: ${e.message}")
         }
