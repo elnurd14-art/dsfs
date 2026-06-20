@@ -1,92 +1,433 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView
- xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="#1A1D26">
-<LinearLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
-<!-- ===== ГОРОДСКАЯ ДОСТАВКА ===== -->
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ГОРОДСКАЯ ДОСТАВКА" android:textColor="#7B82A0" android:textSize="10sp" android:letterSpacing="0.1" android:layout_marginBottom="10dp"/>
-<!-- Тип фильтра: переключатель -->
-<LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:background="#0F1117" android:orientation="horizontal" android:padding="3dp" android:weightSum="3" android:layout_marginBottom="12dp">
-<TextView android:id="@+id/btnCityOff" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="Выкл" android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-<TextView android:id="@+id/btnCityMin" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:layout_marginStart="3dp" android:text="От мин." android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-<TextView android:id="@+id/btnCityFixed" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:layout_marginStart="3dp" android:text="Фикс." android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-</LinearLayout>
-<!-- Поле: мин. цена город -->
-<LinearLayout android:id="@+id/layoutCityMin" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginBottom="4dp">
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Минимальная цена (₸)" android:textColor="#7B82A0" android:textSize="12sp" android:layout_marginBottom="4dp"/>
-<com.google.android.material.textfield.TextInputLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox" app:boxCornerRadiusBottomEnd="10dp" app:boxCornerRadiusBottomStart="10dp" app:boxCornerRadiusTopEnd="10dp" app:boxCornerRadiusTopStart="10dp" app:boxStrokeColor="#E5E7EB">
-<com.google.android.material.textfield.TextInputEditText
- android:id="@+id/etMinPrice" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:text="2000" android:hint="Например: 2000"/>
-</com.google.android.material.textfield.TextInputLayout>
-</LinearLayout>
-<!-- Поле: фикс. цена город -->
-<LinearLayout android:id="@+id/layoutCityFixed" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginBottom="4dp" android:visibility="gone">
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Точная цена (₸) — принимать только эту" android:textColor="#7B82A0" android:textSize="12sp" android:layout_marginBottom="4dp"/>
-<com.google.android.material.textfield.TextInputLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox" app:boxCornerRadiusBottomEnd="10dp" app:boxCornerRadiusBottomStart="10dp" app:boxCornerRadiusTopEnd="10dp" app:boxCornerRadiusTopStart="10dp" app:boxStrokeColor="#FF6B00">
-<com.google.android.material.textfield.TextInputEditText
- android:id="@+id/etFixedCityPrice" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:hint="Например: 3000"/>
-</com.google.android.material.textfield.TextInputLayout>
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Бот откликнется только если цена совпадает точно" android:textColor="#00C853" android:textSize="11sp" android:layout_marginTop="4dp"/>
-</LinearLayout>
-<View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2F42" android:layout_marginTop="8dp" android:layout_marginBottom="16dp"/>
-<!-- ===== МЕЖГОРОД ПОСЫЛКИ ===== -->
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ПОСЫЛКИ МЕЖГОРОД" android:textColor="#7B82A0" android:textSize="10sp" android:letterSpacing="0.1" android:layout_marginBottom="10dp"/>
-<LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:background="#0F1117" android:orientation="horizontal" android:padding="3dp" android:weightSum="3" android:layout_marginBottom="12dp">
-<TextView android:id="@+id/btnIntercityOff" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="Выкл" android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-<TextView android:id="@+id/btnIntercityMin" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:layout_marginStart="3dp" android:text="От мин." android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-<TextView android:id="@+id/btnIntercityFixed" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:layout_marginStart="3dp" android:text="Фикс." android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-</LinearLayout>
-<LinearLayout android:id="@+id/layoutIntercityMin" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginBottom="4dp">
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Минимальная цена (₸)" android:textColor="#7B82A0" android:textSize="12sp" android:layout_marginBottom="4dp"/>
-<com.google.android.material.textfield.TextInputLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox" app:boxCornerRadiusBottomEnd="10dp" app:boxCornerRadiusBottomStart="10dp" app:boxCornerRadiusTopEnd="10dp" app:boxCornerRadiusTopStart="10dp" app:boxStrokeColor="#E5E7EB">
-<com.google.android.material.textfield.TextInputEditText
- android:id="@+id/etMinIntercityPrice" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:text="5000" android:hint="Например: 5000"/>
-</com.google.android.material.textfield.TextInputLayout>
-</LinearLayout>
-<LinearLayout android:id="@+id/layoutIntercityFixed" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginBottom="4dp" android:visibility="gone">
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Точная цена (₸) — принимать только эту" android:textColor="#7B82A0" android:textSize="12sp" android:layout_marginBottom="4dp"/>
-<com.google.android.material.textfield.TextInputLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox" app:boxCornerRadiusBottomEnd="10dp" app:boxCornerRadiusBottomStart="10dp" app:boxCornerRadiusTopEnd="10dp" app:boxCornerRadiusTopStart="10dp" app:boxStrokeColor="#FF6B00">
-<com.google.android.material.textfield.TextInputEditText
- android:id="@+id/etFixedIntercityPrice" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:hint="Например: 8000"/>
-</com.google.android.material.textfield.TextInputLayout>
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Бот откликнется только если цена совпадает точно" android:textColor="#00C853" android:textSize="11sp" android:layout_marginTop="4dp"/>
-</LinearLayout>
-<View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2F42" android:layout_marginTop="8dp" android:layout_marginBottom="16dp"/>
-<!-- ===== ПОПУТЧИКИ ===== -->
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ПОПУТЧИКИ" android:textColor="#7B82A0" android:textSize="10sp" android:letterSpacing="0.1" android:layout_marginBottom="10dp"/>
-<LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:background="#0F1117" android:orientation="horizontal" android:padding="3dp" android:weightSum="3" android:layout_marginBottom="12dp">
-<TextView android:id="@+id/btnCarpoolOff" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="Выкл" android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-<TextView android:id="@+id/btnCarpoolMin" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:layout_marginStart="3dp" android:text="От мин." android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-<TextView android:id="@+id/btnCarpoolFixed" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:layout_marginStart="3dp" android:text="Фикс." android:textSize="12sp" android:background="#0F1117" android:textColor="#7B82A0"/>
-</LinearLayout>
-<LinearLayout android:id="@+id/layoutCarpoolMin" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginBottom="4dp">
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Минимальная цена (₸)" android:textColor="#7B82A0" android:textSize="12sp" android:layout_marginBottom="4dp"/>
-<com.google.android.material.textfield.TextInputLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox" app:boxCornerRadiusBottomEnd="10dp" app:boxCornerRadiusBottomStart="10dp" app:boxCornerRadiusTopEnd="10dp" app:boxCornerRadiusTopStart="10dp" app:boxStrokeColor="#E5E7EB">
-<com.google.android.material.textfield.TextInputEditText
- android:id="@+id/etMinCarpoolPrice" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:text="5000" android:hint="Например: 5000"/>
-</com.google.android.material.textfield.TextInputLayout>
-</LinearLayout>
-<LinearLayout android:id="@+id/layoutCarpoolFixed" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginBottom="4dp" android:visibility="gone">
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Точная цена (₸) — принимать только эту" android:textColor="#7B82A0" android:textSize="12sp" android:layout_marginBottom="4dp"/>
-<com.google.android.material.textfield.TextInputLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox" app:boxCornerRadiusBottomEnd="10dp" app:boxCornerRadiusBottomStart="10dp" app:boxCornerRadiusTopEnd="10dp" app:boxCornerRadiusTopStart="10dp" app:boxStrokeColor="#FF6B00">
-<com.google.android.material.textfield.TextInputEditText
- android:id="@+id/etFixedCarpoolPrice" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:hint="Например: 7000"/>
-</com.google.android.material.textfield.TextInputLayout>
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Бот откликнется только если цена совпадает точно" android:textColor="#00C853" android:textSize="11sp" android:layout_marginTop="4dp"/>
-</LinearLayout>
-<View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2F42" android:layout_marginTop="8dp" android:layout_marginBottom="16dp"/>
-<!-- ===== ЗАДЕРЖКА ===== -->
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ЗАДЕРЖКА ПЕРЕД ЗВОНКОМ" android:textColor="#7B82A0" android:textSize="10sp" android:letterSpacing="0.1" android:layout_marginBottom="10dp"/>
-<com.google.android.material.textfield.TextInputLayout
- android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Секунды (0–10)" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox" app:boxCornerRadiusBottomEnd="10dp" app:boxCornerRadiusBottomStart="10dp" app:boxCornerRadiusTopEnd="10dp" app:boxCornerRadiusTopStart="10dp" app:boxStrokeColor="#E5E7EB">
-<com.google.android.material.textfield.TextInputEditText
- android:id="@+id/etCallDelay" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:text="0"/>
-</com.google.android.material.textfield.TextInputLayout>
-</LinearLayout>
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#111520">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="22dp">
+
+        <!-- ===== ГОРОДСКАЯ ДОСТАВКА ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ГОРОДСКАЯ ДОСТАВКА"
+            android:textColor="#3D4259"
+            android:textSize="10sp"
+            android:letterSpacing="0.15"
+            android:layout_marginBottom="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#080B12"
+            android:orientation="horizontal"
+            android:padding="3dp"
+            android:weightSum="3"
+            android:layout_marginBottom="14dp">
+            <TextView
+                android:id="@+id/btnCityOff"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Выкл"
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+            <TextView
+                android:id="@+id/btnCityMin"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:layout_marginStart="3dp"
+                android:text="От мин."
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+            <TextView
+                android:id="@+id/btnCityFixed"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:layout_marginStart="3dp"
+                android:text="Фикс."
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutCityMin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="6dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Минимальная цена (&#8366;)"
+                android:textColor="#636880"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"/>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxStrokeColor="#1E2438">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etMinPrice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:text="2000"
+                    android:hint="Например: 2000"/>
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutCityFixed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="6dp"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Точная цена (&#8366;) — принимать только эту"
+                android:textColor="#636880"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"/>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxStrokeColor="#FF6D00">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etFixedCityPrice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:hint="Например: 3000"/>
+            </com.google.android.material.textfield.TextInputLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Бот откликнется только если цена совпадает точно"
+                android:textColor="#00E676"
+                android:textSize="11sp"
+                android:layout_marginTop="5dp"/>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2438"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="18dp"/>
+
+        <!-- ===== МЕЖГОРОД ПОСЫЛКИ ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ПОСЫЛКИ МЕЖГОРОД"
+            android:textColor="#3D4259"
+            android:textSize="10sp"
+            android:letterSpacing="0.15"
+            android:layout_marginBottom="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#080B12"
+            android:orientation="horizontal"
+            android:padding="3dp"
+            android:weightSum="3"
+            android:layout_marginBottom="14dp">
+            <TextView
+                android:id="@+id/btnIntercityOff"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Выкл"
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+            <TextView
+                android:id="@+id/btnIntercityMin"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:layout_marginStart="3dp"
+                android:text="От мин."
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+            <TextView
+                android:id="@+id/btnIntercityFixed"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:layout_marginStart="3dp"
+                android:text="Фикс."
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutIntercityMin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="6dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Минимальная цена (&#8366;)"
+                android:textColor="#636880"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"/>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxStrokeColor="#1E2438">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etMinIntercityPrice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:text="5000"
+                    android:hint="Например: 5000"/>
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutIntercityFixed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="6dp"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Точная цена (&#8366;) — принимать только эту"
+                android:textColor="#636880"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"/>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxStrokeColor="#FF6D00">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etFixedIntercityPrice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:hint="Например: 8000"/>
+            </com.google.android.material.textfield.TextInputLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Бот откликнется только если цена совпадает точно"
+                android:textColor="#00E676"
+                android:textSize="11sp"
+                android:layout_marginTop="5dp"/>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2438"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="18dp"/>
+
+        <!-- ===== ПОПУТЧИКИ ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ПОПУТЧИКИ"
+            android:textColor="#3D4259"
+            android:textSize="10sp"
+            android:letterSpacing="0.15"
+            android:layout_marginBottom="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#080B12"
+            android:orientation="horizontal"
+            android:padding="3dp"
+            android:weightSum="3"
+            android:layout_marginBottom="14dp">
+            <TextView
+                android:id="@+id/btnCarpoolOff"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Выкл"
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+            <TextView
+                android:id="@+id/btnCarpoolMin"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:layout_marginStart="3dp"
+                android:text="От мин."
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+            <TextView
+                android:id="@+id/btnCarpoolFixed"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:layout_marginStart="3dp"
+                android:text="Фикс."
+                android:textSize="12sp"
+                android:background="#080B12"
+                android:textColor="#636880"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutCarpoolMin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="6dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Минимальная цена (&#8366;)"
+                android:textColor="#636880"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"/>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxStrokeColor="#1E2438">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etMinCarpoolPrice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:text="5000"
+                    android:hint="Например: 5000"/>
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutCarpoolFixed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="6dp"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Точная цена (&#8366;) — принимать только эту"
+                android:textColor="#636880"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"/>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxStrokeColor="#FF6D00">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etFixedCarpoolPrice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:hint="Например: 7000"/>
+            </com.google.android.material.textfield.TextInputLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Бот откликнется только если цена совпадает точно"
+                android:textColor="#00E676"
+                android:textSize="11sp"
+                android:layout_marginTop="5dp"/>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2438"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="18dp"/>
+
+        <!-- ===== ЗАДЕРЖКА ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ЗАДЕРЖКА ПЕРЕД ЗВОНКОМ"
+            android:textColor="#3D4259"
+            android:textSize="10sp"
+            android:letterSpacing="0.15"
+            android:layout_marginBottom="12dp"/>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Секунды (0–10)"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp"
+            app:boxStrokeColor="#1E2438">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCallDelay"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="0"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </LinearLayout>
 </ScrollView>

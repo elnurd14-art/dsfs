@@ -3,8 +3,7 @@
 
     <!-- Разрешения -->
     <uses-permission android:name="android.permission.CALL_PHONE"/>
-    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.READ_CALL_LOG"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -21,17 +20,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.InDriverBot">
 
-        <!-- Activation Screen -->
-        <activity
-            android:name=".ui.activation.ActivationActivity"
-            android:exported="true"
-            android:theme="@style/Theme.InDriverBot">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-        </activity>
-
         <!-- Onboarding -->
         <activity
             android:name=".ui.onboarding.OnboardingActivity"
@@ -47,8 +35,13 @@
         <!-- Main Activity -->
         <activity
             android:name=".ui.main.MainActivity"
-            android:exported="false"
-            android:launchMode="singleTop"/>
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
 
         <!-- Background Service -->
         <service

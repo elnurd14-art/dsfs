@@ -4,48 +4,48 @@
     <color name="white">#FFFFFFFF</color>
 
     <!-- Brand -->
-    <color name="primary">#00C853</color>
-    <color name="primary_dark">#00A846</color>
+    <color name="primary">#00E676</color>
+    <color name="primary_dark">#00C853</color>
     <color name="primary_light">#E8F5E9</color>
     <color name="accent_orange">#FF6D00</color>
 
-    <!-- Dark background palette -->
-    <color name="bg_primary">#0F1117</color>
-    <color name="bg_card">#1A1D26</color>
-    <color name="bg_card2">#22263A</color>
-    <color name="bg_white">#1A1D26</color>
-    <color name="bg_surface">#1E2230</color>
-    <color name="bg_elevated">#252A3A</color>
+    <!-- Dark background palette — глубже и контрастнее -->
+    <color name="bg_primary">#080B12</color>
+    <color name="bg_card">#111520</color>
+    <color name="bg_card2">#161B2C</color>
+    <color name="bg_white">#111520</color>
+    <color name="bg_surface">#1C2133</color>
+    <color name="bg_elevated">#1E2438</color>
 
     <!-- Text -->
-    <color name="text_primary">#F0F2FF</color>
-    <color name="text_secondary">#7B82A0</color>
+    <color name="text_primary">#EDEEF5</color>
+    <color name="text_secondary">#636880</color>
     <color name="text_white">#FFFFFF</color>
-    <color name="text_hint">#4A5070</color>
+    <color name="text_hint">#3D4259</color>
 
     <!-- Semantic -->
-    <color name="green_500">#00C853</color>
-    <color name="green_bg">#0D2E1A</color>
+    <color name="green_500">#00E676</color>
+    <color name="green_bg">#071C10</color>
     <color name="red_500">#FF4C6A</color>
-    <color name="red_bg">#2E0D14</color>
-    <color name="blue_500">#4D8FFF</color>
-    <color name="blue_bg">#0D1A2E</color>
+    <color name="red_bg">#1E060C</color>
+    <color name="blue_500">#448AFF</color>
+    <color name="blue_bg">#061020</color>
     <color name="orange_500">#FF6D00</color>
-    <color name="yellow_500">#FFB300</color>
+    <color name="yellow_500">#FFD600</color>
 
-    <color name="gray_100">#1E2230</color>
-    <color name="gray_200">#252A3A</color>
-    <color name="gray_500">#7B82A0</color>
-    <color name="gray_900">#2E3448</color>
+    <color name="gray_100">#1C2133</color>
+    <color name="gray_200">#1E2438</color>
+    <color name="gray_500">#636880</color>
+    <color name="gray_900">#252C40</color>
 
-    <color name="divider">#2A2F42</color>
-    <color name="status_active_bg">#0D2E1A</color>
-    <color name="status_inactive_bg">#2E0D14</color>
-    <color name="accent_green">#00C853</color>
-    <color name="accent_green_dark">#00A846</color>
+    <color name="divider">#1E2438</color>
+    <color name="status_active_bg">#071C10</color>
+    <color name="status_inactive_bg">#1E060C</color>
+    <color name="accent_green">#00E676</color>
+    <color name="accent_green_dark">#00C853</color>
     <color name="accent_red">#FF4C6A</color>
-    <color name="accent_blue">#4D8FFF</color>
-    <color name="accent_yellow">#FFB300</color>
+    <color name="accent_blue">#448AFF</color>
+    <color name="accent_yellow">#FFD600</color>
     <color name="accent_purple">#A78BFA</color>
-    <color name="bg_dark">#0F1117</color>
+    <color name="bg_dark">#080B12</color>
 </resources>

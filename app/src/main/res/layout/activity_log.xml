@@ -12,9 +12,10 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="52dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="56dp"
         android:paddingBottom="16dp">
+
         <TextView
             android:id="@+id/btnBack"
             android:layout_width="40dp"
@@ -22,8 +23,9 @@
             android:gravity="center"
             android:text="&lt;"
             android:textColor="@color/text_primary"
-            android:textSize="22sp"
+            android:textSize="24sp"
             android:textStyle="bold"/>
+
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -42,9 +44,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:textColor="@color/text_secondary"
+                android:textColor="@color/text_hint"
                 android:textSize="12sp"/>
         </LinearLayout>
+
         <TextView
             android:id="@+id/btnClearLog"
             android:layout_width="wrap_content"
@@ -55,13 +58,22 @@
             android:textSize="13sp"/>
     </LinearLayout>
 
+    <!-- Divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"/>
+
     <!-- List -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerLog"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="16dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="20dp"
         android:clipToPadding="false"/>
 </LinearLayout>

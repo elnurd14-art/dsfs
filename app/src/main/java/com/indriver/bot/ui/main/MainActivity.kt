@@ -20,9 +20,7 @@ import com.indriver.bot.databinding.DialogFiltersBinding
 import com.indriver.bot.service.BotService
 import com.indriver.bot.service.InDriverAccessibilityService
 import com.indriver.bot.ui.log.LogActivity
-import com.indriver.bot.ui.activation.ActivationActivity
 import com.indriver.bot.ui.onboarding.OnboardingActivity
-import com.indriver.bot.utils.ActivationManager
 import com.indriver.bot.utils.OrderLogger
 import com.indriver.bot.utils.PermissionHelper
 import com.indriver.bot.utils.PreferenceManager
@@ -34,10 +32,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var logger: OrderLogger
 
     companion object {
-        private const val REQ_OVERLAY       = 1001
-        private const val REQ_ACCESSIBILITY  = 1002
-        private const val REQ_CALL           = 1003
-        private const val REQ_PHONE_STATE    = 1004
+        private const val REQ_OVERLAY      = 1001
+        private const val REQ_ACCESSIBILITY = 1002
+        private const val REQ_CALL         = 1003
 
         // Цвета тёмной темы
         private const val COLOR_ACTIVE_BG   = 0xFF00C853.toInt()  // зелёный
@@ -52,15 +49,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         prefs  = PreferenceManager(this)
         logger = OrderLogger(this)
-
-        // Проверяем активацию — до онбординга
-        if (!ActivationManager.isActivated(this)) {
-            startActivity(Intent(this, ActivationActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
-            return
-        }
 
         // Показываем онбординг при первом запуске
         val appPrefs = getSharedPreferences("taksa_prefs", MODE_PRIVATE)
@@ -79,10 +67,9 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 val sb = StringBuilder()
                 when (info.orderType) {
-                    "Попутчики"  -> sb.append("ПОПУТЧИК\n")
-                    "Посылка"    -> sb.append("ПОСЫЛКА\n")
-                    "Весь салон" -> sb.append("ВЕСЬ САЛОН\n")
-                    else         -> sb.append("${info.orderType.uppercase()}\n")
+                    "Попутчики" -> sb.append("ПОПУТЧИК\n")
+                    "Посылка"   -> sb.append("ПОСЫЛКА\n")
+                    else        -> sb.append("ГОРОД\n")
                 }
                 if (info.price > 0) sb.append("${info.price.toInt()} T\n")
                 if (info.cityFrom.isNotEmpty() && info.cityTo.isNotEmpty())
@@ -160,28 +147,15 @@ class MainActivity : AppCompatActivity() {
             if (isChecked) requestCallPermission()
         }
 
+        // Авто-открытие WhatsApp после звонка (номер берётся из самого звонка)
+        binding.switchAutoWhatsApp.isChecked = prefs.isAutoWhatsAppEnabled()
+        binding.switchAutoWhatsApp.setOnCheckedChangeListener { _, isChecked ->
+            prefs.setAutoWhatsAppEnabled(isChecked)
+            if (isChecked) requestCallPermission() // нужен READ_CALL_LOG
+        }
+
         // Задержка звонка
         binding.btnCallDelayEdit.setOnClickListener { showCallDelayDialog() }
-
-        // WhatsApp
-        binding.switchWaEnabled.isChecked = prefs.isWaEnabled()
-        binding.switchWaEnabled.setOnCheckedChangeListener { _, isChecked ->
-            prefs.setWaEnabled(isChecked)
-            if (isChecked) requestPhoneStatePermission()
-        }
-        binding.btnSaveWaTemplate.setOnClickListener {
-            val text = binding.etWaTemplate.text?.toString()?.trim() ?: ""
-            if (text.isNotEmpty()) {
-                prefs.setWaTemplate(text)
-                binding.etWaTemplate.clearFocus()
-                (getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-                    as? android.view.inputmethod.InputMethodManager)
-                    ?.hideSoftInputFromWindow(binding.etWaTemplate.windowToken, 0)
-                android.widget.Toast.makeText(this, "Шаблон сохранён", android.widget.Toast.LENGTH_SHORT).show()
-            } else {
-                android.widget.Toast.makeText(this, "Введите текст сообщения", android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
 
         // Статистика — открывает журнал
         binding.btnStats.setOnClickListener {
@@ -382,6 +356,8 @@ class MainActivity : AppCompatActivity() {
         val hasAccess  = PermissionHelper.isAccessibilityEnabled(this)
         val hasCall    = ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) ==
                          PackageManager.PERMISSION_GRANTED
+        val hasCallLog = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) ==
+                         PackageManager.PERMISSION_GRANTED
 
         val check = { b: Boolean -> if (b) "[V]" else "[ ]" }
         MaterialAlertDialogBuilder(this, R.style.DarkDialogTheme)
@@ -389,8 +365,9 @@ class MainActivity : AppCompatActivity() {
             .setMessage(
                 "${check(hasAccess)}  Специальные возможности\n" +
                 "${check(hasOverlay)}  Наложение поверх приложений\n" +
-                "${check(hasCall)}  Совершение звонков\n\n" +
-                "Для работы необходимы все три разрешения."
+                "${check(hasCall)}  Совершение звонков\n" +
+                "${check(hasCallLog)}  Журнал звонков (для WhatsApp)\n\n" +
+                "Для работы необходимы все разрешения."
             )
             .setPositiveButton("Выдать") { _, _ -> requestAllPermissions() }
             .setNegativeButton("Закрыть", null)
@@ -422,8 +399,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvSelectedCities.alpha = if (cityOn) 1.0f else 0.5f
         binding.btnEditCities.isEnabled = cityOn
         binding.switchAutoCall.isChecked = prefs.isAutoCallEnabled()
-        binding.switchWaEnabled.isChecked = prefs.isWaEnabled()
-        binding.etWaTemplate.setText(prefs.getWaTemplate())
+        binding.switchAutoWhatsApp.isChecked = prefs.isAutoWhatsAppEnabled()
 
         val last = prefs.getLastOrderInfo()
         if (last.isNotEmpty()) binding.tvLastOrder.text = last
@@ -445,19 +421,18 @@ class MainActivity : AppCompatActivity() {
     private fun updateModeUI() {
         val mode = prefs.getMode()
 
-        // Режим: Весь салон
+        // Режим: Город
         val allSel      = mode == PreferenceManager.MODE_ALL
         val intercitySel = mode == PreferenceManager.MODE_INTERCITY
         val carpoolSel  = mode == PreferenceManager.MODE_CARPOOL
 
-        setModeTab(binding.btnModeAll,       allSel,       "Весь салон")
+        setModeTab(binding.btnModeAll,       allSel,       "Город")
         setModeTab(binding.btnModeIntercity, intercitySel, "Посылки")
         setModeTab(binding.btnModeCarpool,   carpoolSel,   "Попутки")
 
         val desc = when (mode) {
-            PreferenceManager.MODE_ALL       -> "Только заказы с меткой Весь салон"
-            PreferenceManager.MODE_INTERCITY -> "Только посылки межгород (вкладка Попутки)"
-            PreferenceManager.MODE_CARPOOL   -> "Только попутчики (вкладка Попутки)"
+            PreferenceManager.MODE_INTERCITY -> "Бот принимает только посылки межгород (вкладка Попутки)"
+            PreferenceManager.MODE_CARPOOL   -> "Бот кликает карточку попутчика в ленте"
             else                             -> ""
         }
         binding.tvModeDesc.text = desc
@@ -561,29 +536,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestCallPermission() {
+        val needed = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.CALL_PHONE), REQ_CALL
-            )
+            needed.add(Manifest.permission.CALL_PHONE)
         }
-    }
-
-    private fun requestPhoneStatePermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG)
             != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.READ_PHONE_STATE), REQ_PHONE_STATE
-            )
+            needed.add(Manifest.permission.READ_CALL_LOG)
+        }
+        if (needed.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_CALL)
         }
     }
 
     override fun onRequestPermissionsResult(req: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(req, perms, results)
-        if (req == REQ_CALL && results.firstOrNull() != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Без этого разрешения авто-звонок не работает", Toast.LENGTH_LONG).show()
-            binding.switchAutoCall.isChecked = false
-            prefs.setAutoCallEnabled(false)
+        if (req == REQ_CALL) {
+            val callIdx = perms.indexOf(Manifest.permission.CALL_PHONE)
+            if (callIdx >= 0 && results.getOrNull(callIdx) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Без этого разрешения авто-звонок не работает", Toast.LENGTH_LONG).show()
+                binding.switchAutoCall.isChecked = false
+                prefs.setAutoCallEnabled(false)
+            }
+            val logIdx = perms.indexOf(Manifest.permission.READ_CALL_LOG)
+            if (logIdx >= 0 && results.getOrNull(logIdx) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Без журнала звонков авто-открытие WhatsApp не работает", Toast.LENGTH_LONG).show()
+                prefs.setAutoWhatsAppEnabled(false)
+            }
         }
     }
 
@@ -605,18 +585,5 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         checkPermissions()
         loadUI()
-        // Восстанавливаем состояние переключателя бота (мог измениться пока activity была на фоне)
-        binding.switchAutoAccept.isChecked = InDriverAccessibilityService.isRunning
-        if (InDriverAccessibilityService.isRunning) {
-            binding.tvStatusLabel.text = "БОТ РАБОТАЕТ"
-            binding.tvStatusDesc.text  = "Слежу за заказами — откройте inDrive"
-            binding.cardBotToggle.background =
-                ContextCompat.getDrawable(this, R.drawable.bg_status_on)
-        } else {
-            binding.tvStatusLabel.text = "БОТ ОСТАНОВЛЕН"
-            binding.tvStatusDesc.text  = "Нажмите переключатель для запуска"
-            binding.cardBotToggle.background =
-                ContextCompat.getDrawable(this, R.drawable.bg_status_off)
-        }
     }
 }

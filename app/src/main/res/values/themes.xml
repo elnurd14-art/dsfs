@@ -12,17 +12,17 @@
     </style>
 
     <style name="DarkDialogTheme" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
-        <item name="android:background">#1A1D26</item>
-        <item name="android:textColor">#F0F2FF</item>
-        <item name="colorPrimary">#00C853</item>
-        <item name="colorAccent">#00C853</item>
-        <item name="android:textColorPrimary">#F0F2FF</item>
-        <item name="android:textColorSecondary">#7B82A0</item>
+        <item name="android:background">#111520</item>
+        <item name="android:textColor">#EDEEF5</item>
+        <item name="colorPrimary">#00E676</item>
+        <item name="colorAccent">#00E676</item>
+        <item name="android:textColorPrimary">#EDEEF5</item>
+        <item name="android:textColorSecondary">#636880</item>
         <item name="materialAlertDialogTitleTextStyle">@style/DarkDialogTitle</item>
     </style>
 
     <style name="DarkDialogTitle" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
-        <item name="android:textColor">#F0F2FF</item>
+        <item name="android:textColor">#EDEEF5</item>
         <item name="android:textSize">18sp</item>
     </style>
 

@@ -9,12 +9,12 @@ class PreferenceManager(context: Context) {
         context.getSharedPreferences("indrive_bot_prefs", Context.MODE_PRIVATE)
 
     // ===== РЕЖИМ =====
-    fun getMode(): String = prefs.getString("mode", MODE_CARPOOL) ?: MODE_CARPOOL
+    fun getMode(): String = prefs.getString("mode", MODE_ALL) ?: MODE_ALL
     fun setMode(v: String) = prefs.edit().putString("mode", v).apply()
 
     // ===== ФИЛЬТР ГОРОДСКАЯ ДОСТАВКА =====
     // mode: "off" | "min" | "fixed"
-    fun getCityPriceMode(): String = prefs.getString("city_price_mode", PRICE_OFF) ?: PRICE_OFF
+    fun getCityPriceMode(): String = prefs.getString("city_price_mode", PRICE_MIN) ?: PRICE_MIN
     fun setCityPriceMode(v: String) = prefs.edit().putString("city_price_mode", v).apply()
     fun getMinPrice(): Double = prefs.getFloat("filter_min_price", 2000f).toDouble()
     fun setMinPrice(v: Double) = prefs.edit().putFloat("filter_min_price", v.toFloat()).apply()
@@ -25,7 +25,7 @@ class PreferenceManager(context: Context) {
     fun setMinPriceEnabled(v: Boolean) { if (!v) setCityPriceMode(PRICE_OFF) }
 
     // ===== ФИЛЬТР МЕЖГОРОД ПОСЫЛКИ =====
-    fun getIntercityPriceMode(): String = prefs.getString("intercity_price_mode", PRICE_OFF) ?: PRICE_OFF
+    fun getIntercityPriceMode(): String = prefs.getString("intercity_price_mode", PRICE_MIN) ?: PRICE_MIN
     fun setIntercityPriceMode(v: String) = prefs.edit().putString("intercity_price_mode", v).apply()
     fun getMinIntercityPrice(): Double = prefs.getFloat("filter_min_intercity_price", 5000f).toDouble()
     fun setMinIntercityPrice(v: Double) = prefs.edit().putFloat("filter_min_intercity_price", v.toFloat()).apply()
@@ -36,7 +36,7 @@ class PreferenceManager(context: Context) {
     fun setMinIntercityPriceEnabled(v: Boolean) { if (!v) setIntercityPriceMode(PRICE_OFF) }
 
     // ===== ФИЛЬТР ПОПУТЧИКИ =====
-    fun getCarpoolPriceMode(): String = prefs.getString("carpool_price_mode", PRICE_OFF) ?: PRICE_OFF
+    fun getCarpoolPriceMode(): String = prefs.getString("carpool_price_mode", PRICE_MIN) ?: PRICE_MIN
     fun setCarpoolPriceMode(v: String) = prefs.edit().putString("carpool_price_mode", v).apply()
     fun getMinCarpoolPrice(): Double = prefs.getFloat("filter_min_carpool_price", 5000f).toDouble()
     fun setMinCarpoolPrice(v: Double) = prefs.edit().putFloat("filter_min_carpool_price", v.toFloat()).apply()
@@ -55,10 +55,16 @@ class PreferenceManager(context: Context) {
     fun setCityFilterEnabled(v: Boolean) = prefs.edit().putBoolean("city_filter_on", v).apply()
 
     // ===== АВТО-ЗВОНОК =====
-    fun isAutoCallEnabled(): Boolean = prefs.getBoolean("auto_call_enabled", false)
+    fun isAutoCallEnabled(): Boolean = prefs.getBoolean("auto_call_enabled", true)
     fun setAutoCallEnabled(v: Boolean) = prefs.edit().putBoolean("auto_call_enabled", v).apply()
     fun getCallDelayMs(): Long = prefs.getLong("call_delay_ms", 0L)
     fun setCallDelayMs(v: Long) = prefs.edit().putLong("call_delay_ms", v).apply()
+
+    // ===== АВТО-WHATSAPP ПОСЛЕ ЗВОНКА =====
+    // Номер берётся из самого исходящего звонка (CallLog), а не из карточки заказа в inDrive —
+    // там номер часто скрыт. Сообщение НЕ отправляется автоматически, только открывается чат.
+    fun isAutoWhatsAppEnabled(): Boolean = prefs.getBoolean("auto_whatsapp_enabled", true)
+    fun setAutoWhatsAppEnabled(v: Boolean) = prefs.edit().putBoolean("auto_whatsapp_enabled", v).apply()
 
     // ===== РАБОЧЕЕ ВРЕМЯ =====
     fun isWorkHoursEnabled(): Boolean = prefs.getBoolean("work_hours_on", false)
@@ -70,14 +76,14 @@ class PreferenceManager(context: Context) {
 
     // ===== СТАТИСТИКА =====
     fun getAcceptedCount(): Int = prefs.getInt("stat_accepted", 0)
-    @Synchronized fun incrementAccepted() = prefs.edit().putInt("stat_accepted", getAcceptedCount() + 1).commit()
+    fun incrementAccepted() = prefs.edit().putInt("stat_accepted", getAcceptedCount() + 1).apply()
     fun getMissedCount(): Int = prefs.getInt("stat_missed", 0)
-    @Synchronized fun incrementMissed() = prefs.edit().putInt("stat_missed", getMissedCount() + 1).commit()
+    fun incrementMissed() = prefs.edit().putInt("stat_missed", getMissedCount() + 1).apply()
     fun getCallCount(): Int = prefs.getInt("stat_calls", 0)
-    @Synchronized fun incrementCalls() = prefs.edit().putInt("stat_calls", getCallCount() + 1).commit()
+    fun incrementCalls() = prefs.edit().putInt("stat_calls", getCallCount() + 1).apply()
     fun getTotalEarnings(): Double = prefs.getFloat("stat_earnings", 0f).toDouble()
-    @Synchronized fun addEarnings(amount: Double) =
-        prefs.edit().putFloat("stat_earnings", (getTotalEarnings() + amount).toFloat()).commit()
+    fun addEarnings(amount: Double) =
+        prefs.edit().putFloat("stat_earnings", (getTotalEarnings() + amount).toFloat()).apply()
     fun getLastOrderInfo(): String = prefs.getString("last_order_info", "") ?: ""
     fun setLastOrderInfo(info: String) = prefs.edit().putString("last_order_info", info).apply()
     fun getWinRate(): Double {
@@ -88,12 +94,6 @@ class PreferenceManager(context: Context) {
         .putInt("stat_accepted", 0).putInt("stat_missed", 0)
         .putInt("stat_calls", 0).putFloat("stat_earnings", 0f)
         .putString("last_order_info", "").apply()
-
-    // ===== WHATSAPP =====
-    fun isWaEnabled(): Boolean = prefs.getBoolean("wa_enabled", false)
-    fun setWaEnabled(v: Boolean) = prefs.edit().putBoolean("wa_enabled", v).apply()
-    fun getWaTemplate(): String = prefs.getString("wa_template", "") ?: ""
-    fun setWaTemplate(v: String) = prefs.edit().putString("wa_template", v).apply()
 
     // ===== BLACKLIST =====
     fun getBlacklist(): Set<String> =

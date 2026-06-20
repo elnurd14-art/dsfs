@@ -15,7 +15,7 @@ class OrderLogger(context: Context) {
 
     data class LogEntry(
         val timestamp: Long,
-        val orderType: String,   // "Весь салон" / "Посылка" / "Попутчики"
+        val orderType: String,   // "Город" / "Посылка" / "Попутчики"
         val price: Int,
         val cityFrom: String,
         val cityTo: String,
