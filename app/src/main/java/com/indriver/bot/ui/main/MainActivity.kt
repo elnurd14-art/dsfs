@@ -78,7 +78,7 @@ class MainActivity : AppCompatActivity() {
                 when (info.orderType) {
                     "Попутчики" -> sb.append("ПОПУТЧИК\n")
                     "Посылка"   -> sb.append("ПОСЫЛКА\n")
-                    else        -> sb.append("ГОРОД\n")
+                    else        -> sb.append("ВЕСЬ САЛОН\n")
                 }
                 if (info.price > 0) sb.append("${info.price.toInt()} T\n")
                 if (info.cityFrom.isNotEmpty() && info.cityTo.isNotEmpty())
@@ -438,13 +438,14 @@ class MainActivity : AppCompatActivity() {
         val intercitySel = mode == PreferenceManager.MODE_INTERCITY
         val carpoolSel  = mode == PreferenceManager.MODE_CARPOOL
 
-        setModeTab(binding.btnModeAll,       allSel,       "Город")
+        setModeTab(binding.btnModeAll,       allSel,       "Весь салон")
         setModeTab(binding.btnModeIntercity, intercitySel, "Посылки")
         setModeTab(binding.btnModeCarpool,   carpoolSel,   "Попутки")
 
         val desc = when (mode) {
-            PreferenceManager.MODE_INTERCITY -> "Бот принимает только посылки межгород (вкладка Попутки)"
-            PreferenceManager.MODE_CARPOOL   -> "Бот кликает карточку попутчика в ленте"
+            PreferenceManager.MODE_ALL       -> "Бот принимает только заказы «Весь салон»"
+            PreferenceManager.MODE_INTERCITY -> "Бот принимает только карточки «Отправить посылку»"
+            PreferenceManager.MODE_CARPOOL   -> "Бот принимает только карточки «С попутчиками»"
             else                             -> ""
         }
         binding.tvModeDesc.text = desc

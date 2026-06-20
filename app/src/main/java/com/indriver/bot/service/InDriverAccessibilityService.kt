@@ -226,6 +226,10 @@ class InDriverAccessibilityService : AccessibilityService() {
     // ================================================================
     private fun processCarpoolFeed(root: AccessibilityNodeInfo, fullText: String) {
         val mode  = prefs.getMode()
+        // Режим «Весь салон» не должен трогать ленту попутчиков/посылок вообще —
+        // это отдельный тип заказов, который ловится через processOrderFeed/processSingleOrder.
+        if (mode == PreferenceManager.MODE_ALL) return
+
         val cards = findCarpoolCards(root)
         Log.d(TAG, "Карточек попутчиков: ${cards.size}")
 
@@ -529,6 +533,10 @@ class InDriverAccessibilityService : AccessibilityService() {
     //  ОБРАБОТКА ЛЕНТЫ ЗАКАЗОВ
     // ================================================================
     private fun processOrderFeed(texts: List<String>, fullText: String) {
+        // Лента обычных заказов (₸/км) — это всегда «Весь салон». Если выбран
+        // другой режим (Посылки/Попутки), эта лента нас не интересует совсем.
+        if (prefs.getMode() != PreferenceManager.MODE_ALL) return
+
         val matches = RX_PRICE_PER_KM.findAll(fullText).toList()
 
         for (i in matches.indices) {
@@ -603,7 +611,7 @@ class InDriverAccessibilityService : AccessibilityService() {
         val orderType    = when {
             isParcel    -> "Посылка"
             isIntercity -> "Посылка"
-            else        -> "Город"
+            else        -> "Весь салон"
         }
         return OrderInfo(
             price, pricePerKm, distToClient, rating, ratingCount,
@@ -616,6 +624,9 @@ class InDriverAccessibilityService : AccessibilityService() {
     //  ОДИНОЧНЫЙ ЗАКАЗ
     // ================================================================
     private fun processSingleOrder(texts: List<String>, fullText: String) {
+        // Экран одиночного заказа — тоже всегда «Весь салон».
+        if (prefs.getMode() != PreferenceManager.MODE_ALL) return
+
         val info = parseOrderCard(fullText)
         if (info.price <= 0) return
 
@@ -755,14 +766,8 @@ class InDriverAccessibilityService : AccessibilityService() {
                 return false to "Вне рабочего времени"
         }
         val mode = prefs.getMode()
-        when (mode) {
-            PreferenceManager.MODE_INTERCITY ->
-                if (info.orderType != "Посылка" && !info.isIntercity)
-                    return false to "Режим: только посылки"
-            PreferenceManager.MODE_CARPOOL ->
-                if (info.orderType != "Попутчики")
-                    return false to "Режим: только попутчики"
-        }
+        if (mode == PreferenceManager.MODE_ALL && info.orderType != "Весь салон")
+            return false to "Режим: только Весь салон"
         if (info.phone.isNotEmpty() && prefs.isBlacklisted(info.phone))
             return false to "Заблокирован"
 
