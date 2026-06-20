@@ -23,6 +23,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.InDriverBot">
 
+        <!-- Activation Gate -->
+        <activity
+            android:name=".ui.activation.ActivationActivity"
+            android:exported="true"
+            android:theme="@style/Theme.InDriverBot">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
         <!-- Onboarding -->
         <activity
             android:name=".ui.onboarding.OnboardingActivity"
@@ -38,12 +49,8 @@
         <!-- Main Activity -->
         <activity
             android:name=".ui.main.MainActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTop">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
         </activity>
 
         <!-- Background Service -->

@@ -240,6 +240,7 @@ class InDriverAccessibilityService : AccessibilityService() {
             // и только последним — общий regex.
             val price = extractPriceSmartFromNode(cardNode)
                      ?: extractPriceSmart(cardText)
+                     ?: 0.0
             if (price <= 0) continue
 
             val isParcel  = cardText.contains("Отправить посылку", ignoreCase = true)

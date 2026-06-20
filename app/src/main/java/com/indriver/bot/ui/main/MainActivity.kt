@@ -19,8 +19,10 @@ import com.indriver.bot.databinding.ActivityMainBinding
 import com.indriver.bot.databinding.DialogFiltersBinding
 import com.indriver.bot.service.BotService
 import com.indriver.bot.service.InDriverAccessibilityService
+import com.indriver.bot.ui.activation.ActivationActivity
 import com.indriver.bot.ui.log.LogActivity
 import com.indriver.bot.ui.onboarding.OnboardingActivity
+import com.indriver.bot.utils.ActivationManager
 import com.indriver.bot.utils.OrderLogger
 import com.indriver.bot.utils.PermissionHelper
 import com.indriver.bot.utils.PreferenceManager
@@ -49,6 +51,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         prefs  = PreferenceManager(this)
         logger = OrderLogger(this)
+
+        // Защита от обхода экрана активации (прямой запуск MainActivity, рекенты и т.д.)
+        if (!ActivationManager.isActivated(this)) {
+            startActivity(Intent(this, ActivationActivity::class.java))
+            finish()
+            return
+        }
 
         // Показываем онбординг при первом запуске
         val appPrefs = getSharedPreferences("taksa_prefs", MODE_PRIVATE)
