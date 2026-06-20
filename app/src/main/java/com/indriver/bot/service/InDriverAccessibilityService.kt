@@ -167,6 +167,7 @@ class InDriverAccessibilityService : AccessibilityService() {
         super.onDestroy()
         handler.removeCallbacks(watchdogRunnable)
         if (::whatsAppWatcher.isInitialized) whatsAppWatcher.release()
+        if (::logger.isInitialized) logger.shutdown()
     }
 
     // ================================================================
