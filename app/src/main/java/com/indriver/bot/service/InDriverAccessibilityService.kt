@@ -12,6 +12,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
+import com.indriver.bot.utils.CallStateManager
 import com.indriver.bot.utils.OrderLogger
 import com.indriver.bot.utils.PreferenceManager
 import java.util.Calendar
@@ -76,6 +77,7 @@ class InDriverAccessibilityService : AccessibilityService() {
     private lateinit var logger: OrderLogger
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var whatsAppWatcher: CallLogWhatsAppWatcher
+    private lateinit var callStateManager: CallStateManager
 
     private var lastCallTime    = 0L
     private val MIN_CALL_INTERVAL = 15_000L
@@ -122,6 +124,8 @@ class InDriverAccessibilityService : AccessibilityService() {
         prefs  = PreferenceManager(this)
         logger = OrderLogger(this)
         whatsAppWatcher = CallLogWhatsAppWatcher(applicationContext)
+        callStateManager = CallStateManager(applicationContext)
+        callStateManager.start()
 
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPES_ALL_MASK
@@ -167,6 +171,7 @@ class InDriverAccessibilityService : AccessibilityService() {
         super.onDestroy()
         handler.removeCallbacks(watchdogRunnable)
         if (::whatsAppWatcher.isInitialized) whatsAppWatcher.release()
+        if (::callStateManager.isInitialized) callStateManager.stop()
         if (::logger.isInitialized) logger.shutdown()
     }
 
@@ -824,10 +829,10 @@ class InDriverAccessibilityService : AccessibilityService() {
         try {
             val clean = phone.replace(RX_NOT_PHONE_CHARS, "")
             if (clean.length < 10) return
-            // Взводим наблюдатель ДО старта звонка — как только звонок попадёт
-            // в CallLog как исходящий, watcher откроет WhatsApp с этим же номером.
-            if (prefs.isAutoWhatsAppEnabled() && ::whatsAppWatcher.isInitialized) {
-                whatsAppWatcher.arm(clean)
+            // Взводим CallStateManager ДО старта звонка — как только звонок завершится
+            // (OFFHOOK → IDLE), он откроет WhatsApp с этим номером (и шаблоном текста, если задан).
+            if (::callStateManager.isInitialized) {
+                callStateManager.setPendingPhone(clean)
             }
             startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$clean")).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK

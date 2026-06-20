@@ -65,6 +65,14 @@ class PreferenceManager(context: Context) {
     // там номер часто скрыт. Сообщение НЕ отправляется автоматически, только открывается чат.
     fun isAutoWhatsAppEnabled(): Boolean = prefs.getBoolean("auto_whatsapp_enabled", true)
     fun setAutoWhatsAppEnabled(v: Boolean) = prefs.edit().putBoolean("auto_whatsapp_enabled", v).apply()
+    // Короткие алиасы, используемые в CallStateManager
+    fun isWaEnabled(): Boolean = isAutoWhatsAppEnabled()
+    fun setWaEnabled(v: Boolean) = setAutoWhatsAppEnabled(v)
+
+    // Шаблон текста, который подставляется в чат WhatsApp после звонка
+    // (если пустой — чат открывается без текста, пользователь сам пишет)
+    fun getWaTemplate(): String = prefs.getString("wa_template", "") ?: ""
+    fun setWaTemplate(v: String) = prefs.edit().putString("wa_template", v).apply()
 
     // ===== РАБОЧЕЕ ВРЕМЯ =====
     fun isWorkHoursEnabled(): Boolean = prefs.getBoolean("work_hours_on", false)

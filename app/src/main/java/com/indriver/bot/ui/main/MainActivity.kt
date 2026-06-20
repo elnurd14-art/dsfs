@@ -358,6 +358,8 @@ class MainActivity : AppCompatActivity() {
                          PackageManager.PERMISSION_GRANTED
         val hasCallLog = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) ==
                          PackageManager.PERMISSION_GRANTED
+        val hasPhoneState = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) ==
+                         PackageManager.PERMISSION_GRANTED
 
         val check = { b: Boolean -> if (b) "[V]" else "[ ]" }
         MaterialAlertDialogBuilder(this, R.style.DarkDialogTheme)
@@ -366,7 +368,8 @@ class MainActivity : AppCompatActivity() {
                 "${check(hasAccess)}  Специальные возможности\n" +
                 "${check(hasOverlay)}  Наложение поверх приложений\n" +
                 "${check(hasCall)}  Совершение звонков\n" +
-                "${check(hasCallLog)}  Журнал звонков (для WhatsApp)\n\n" +
+                "${check(hasCallLog)}  Журнал звонков (для WhatsApp)\n" +
+                "${check(hasPhoneState)}  Состояние звонка (для WhatsApp)\n\n" +
                 "Для работы необходимы все разрешения."
             )
             .setPositiveButton("Выдать") { _, _ -> requestAllPermissions() }
@@ -545,6 +548,10 @@ class MainActivity : AppCompatActivity() {
             != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.READ_CALL_LOG)
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.READ_PHONE_STATE)
+        }
         if (needed.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_CALL)
         }
@@ -562,6 +569,11 @@ class MainActivity : AppCompatActivity() {
             val logIdx = perms.indexOf(Manifest.permission.READ_CALL_LOG)
             if (logIdx >= 0 && results.getOrNull(logIdx) != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Без журнала звонков авто-открытие WhatsApp не работает", Toast.LENGTH_LONG).show()
+                prefs.setAutoWhatsAppEnabled(false)
+            }
+            val phoneStateIdx = perms.indexOf(Manifest.permission.READ_PHONE_STATE)
+            if (phoneStateIdx >= 0 && results.getOrNull(phoneStateIdx) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Без состояния звонка авто-открытие WhatsApp не работает", Toast.LENGTH_LONG).show()
                 prefs.setAutoWhatsAppEnabled(false)
             }
         }
