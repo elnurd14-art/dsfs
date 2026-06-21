@@ -13,14 +13,16 @@ import com.indriver.bot.utils.WhatsAppHelper
  * вызова, который инициировал бот. Номер берётся из реального звонка,
  * а не из текста карточки заказа в inDrive — там он часто скрыт или отсутствует.
  *
- * Как работает:
- * 1. Перед звонком вызывается arm() — наблюдатель "взведён" и ждёт ровно один
- *    исходящий звонок.
- * 2. Когда CallLog обновляется новой исходящей записью, наблюдатель сверяет
- *    её номер с тем, на который бот только что позвонил (makeCall),
- *    и если всё совпало — открывает WhatsApp с этим номером.
- * 3. Защита от чужих звонков: реагируем только на armed-номер, остальные
- *    изменения CallLog игнорируются.
+ * Два режима взвода:
+ *  - arm(phoneNumber)  — номер уже известен заранее (бот сам звонил), просто
+ *                        подтверждаем, что именно этот звонок попал в CallLog.
+ *  - armBlind(onFound) — номер НЕ известен заранее (звонок инициирует сам
+ *                        inDrive при нажатии на карточку попутчика/посылки,
+ *                        а номера в тексте карточки нет). Берём номер из
+ *                        первой же исходящей записи CallLog после взвода.
+ *
+ * Защита от чужих звонков: реагируем только на armed-номер (или на ближайший
+ * исходящий после armBlind), остальные изменения CallLog игнорируются.
  */
 class CallLogWhatsAppWatcher(private val context: Context) {
 
@@ -31,6 +33,8 @@ class CallLogWhatsAppWatcher(private val context: Context) {
 
     private val handler = Handler(Looper.getMainLooper())
     private var armedNumber: String? = null
+    private var blindCallback: ((String) -> Unit)? = null
+    private var armTimeMs = 0L
     private var observer: ContentObserver? = null
 
     private val disarmRunnable = Runnable { disarm() }
@@ -40,30 +44,53 @@ class CallLogWhatsAppWatcher(private val context: Context) {
         val digits = WhatsAppHelper.normalize(phoneNumber)
         if (digits.length < 10) return
 
-        armedNumber = digits
+        armedNumber   = digits
+        blindCallback = null
+        armTimeMs     = System.currentTimeMillis()
+        rearmTimeout()
+        ensureObserver()
+    }
+
+    /**
+     * Взвести наблюдатель "вслепую": номер неизвестен, ждём первую исходящую
+     * запись в CallLog после этого момента и отдаём её номер в callback.
+     * Используется, когда сам inDrive звонит при нажатии на карточку и номер
+     * в карточке не показан.
+     */
+    fun armBlind(onFound: (String) -> Unit) {
+        armedNumber   = null
+        blindCallback = onFound
+        armTimeMs     = System.currentTimeMillis()
+        rearmTimeout()
+        ensureObserver()
+    }
+
+    private fun rearmTimeout() {
         handler.removeCallbacks(disarmRunnable)
         handler.postDelayed(disarmRunnable, ARM_TIMEOUT_MS)
+    }
 
-        if (observer == null) {
-            val obs = object : ContentObserver(handler) {
-                override fun onChange(selfChange: Boolean) {
-                    super.onChange(selfChange)
-                    checkLatestCall()
-                }
+    private fun ensureObserver() {
+        if (observer != null) return
+        val obs = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) {
+                super.onChange(selfChange)
+                checkLatestCall()
             }
-            observer = obs
-            try {
-                context.contentResolver.registerContentObserver(
-                    CallLog.Calls.CONTENT_URI, true, obs
-                )
-            } catch (e: SecurityException) {
-                Log.w(TAG, "CallLogWatcher: нет разрешения READ_CALL_LOG — пропускаем")
-            }
+        }
+        observer = obs
+        try {
+            context.contentResolver.registerContentObserver(
+                CallLog.Calls.CONTENT_URI, true, obs
+            )
+        } catch (e: SecurityException) {
+            Log.w(TAG, "CallLogWatcher: нет разрешения READ_CALL_LOG — пропускаем")
         }
     }
 
     private fun disarm() {
-        armedNumber = null
+        armedNumber   = null
+        blindCallback = null
     }
 
     fun release() {
@@ -76,7 +103,10 @@ class CallLogWhatsAppWatcher(private val context: Context) {
     }
 
     private fun checkLatestCall() {
-        val expected = armedNumber ?: return
+        val blind = blindCallback
+        val expected = armedNumber
+        if (expected == null && blind == null) return
+
         try {
             val cursor = context.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
@@ -89,16 +119,28 @@ class CallLogWhatsAppWatcher(private val context: Context) {
                 if (it.moveToFirst()) {
                     val number = it.getString(it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)) ?: ""
                     val type = it.getInt(it.getColumnIndexOrThrow(CallLog.Calls.TYPE))
+                    val date = it.getLong(it.getColumnIndexOrThrow(CallLog.Calls.DATE))
                     val normalized = WhatsAppHelper.normalize(number)
-
                     val isOutgoing = type == CallLog.Calls.OUTGOING_TYPE
-                    val matches = normalized == expected ||
-                            normalized.takeLast(10) == expected.takeLast(10)
 
-                    if (isOutgoing && matches) {
-                        Log.d(TAG, "CallLogWatcher: подтверждён исходящий звонок на $expected — открываю WhatsApp")
-                        disarm()
-                        WhatsAppHelper.openChat(context, expected)
+                    if (blind != null) {
+                        // Вслепую: берём ЛЮБОЙ исходящий звонок, появившийся после взвода.
+                        if (isOutgoing && date >= armTimeMs && normalized.length >= 10) {
+                            Log.d(TAG, "CallLogWatcher: вслепую найден исходящий $normalized")
+                            disarm()
+                            blind(normalized)
+                        }
+                        return
+                    }
+
+                    if (expected != null) {
+                        val matches = normalized == expected ||
+                                normalized.takeLast(10) == expected.takeLast(10)
+                        if (isOutgoing && matches) {
+                            Log.d(TAG, "CallLogWatcher: подтверждён исходящий звонок на $expected — открываю WhatsApp")
+                            disarm()
+                            WhatsAppHelper.openChat(context, expected)
+                        }
                     }
                 }
             }

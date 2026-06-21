@@ -262,14 +262,7 @@ class InDriverAccessibilityService : AccessibilityService() {
             val cardKey = "${price.toInt()}_${cardText.take(80)}".hashCode()
             if (processedOrders.contains(cardKey)) continue
 
-            // Города — только из этой карточки.
-            // cityTo нужен ДО клика (фильтр городов внизу), cityFrom — только для лога/сводки,
-            // но один проход по списку городов дешевле двух, поэтому считаем оба сразу.
-            val foundCities = PreferenceManager.KZ_CITIES.filter { cardText.contains(it, ignoreCase = true) }
-            val cityFrom = foundCities.firstOrNull() ?: "Астана"
-            val cityTo = foundCities.firstOrNull { !it.equals(cityFrom, ignoreCase = true) } ?: ""
-
-            // Фильтр цены
+            // Фильтр цены — важен, проверяем сразу, города тут не нужны.
             val priceMode  = if (isParcel) prefs.getIntercityPriceMode() else prefs.getCarpoolPriceMode()
             val minPrice   = if (isParcel) prefs.getMinIntercityPrice()  else prefs.getMinCarpoolPrice()
             val fixedPrice = if (isParcel) prefs.getFixedIntercityPrice() else prefs.getFixedCarpoolPrice()
@@ -282,25 +275,30 @@ class InDriverAccessibilityService : AccessibilityService() {
                 else -> true
             }
             if (!priceOk) {
-                logMissed(orderType, price, cityFrom, cityTo, "Цена ${price.toInt()} T < ${minPrice.toInt()} T")
+                logMissed(orderType, price, "", "", "Цена ${price.toInt()} T < ${minPrice.toInt()} T")
                 prefs.incrementMissed()
                 continue
             }
 
-            // Фильтр городов
-            if (prefs.isCityFilterEnabled() && cityTo.isNotEmpty()) {
-                if (prefs.getAllowedCities().none { cityTo.contains(it, ignoreCase = true) }) {
+            // Города — считаем ДО клика только если фильтр городов реально включён
+            // (иначе он не влияет на решение кликать, и не должен задерживать клик).
+            var cityFrom = ""
+            var cityTo   = ""
+            if (prefs.isCityFilterEnabled()) {
+                val foundCities = PreferenceManager.KZ_CITIES.filter { cardText.contains(it, ignoreCase = true) }
+                cityFrom = foundCities.firstOrNull() ?: "Астана"
+                cityTo   = foundCities.firstOrNull { !it.equals(cityFrom, ignoreCase = true) } ?: ""
+
+                if (cityTo.isNotEmpty() && prefs.getAllowedCities().none { cityTo.contains(it, ignoreCase = true) }) {
                     logMissed(orderType, price, cityFrom, cityTo, "Город '$cityTo' не разрешён")
                     prefs.incrementMissed()
                     continue
                 }
             }
 
-            // ── Принят: СНАЧАЛА действие, ВСЁ ОСТАЛЬНОЕ — после ──────────
-            // Критично для скорости: клик должен случиться раньше записи статистики,
-            // лога и показа уведомлений (SharedPreferences.apply, файловый лог и
-            // NotificationManager — это диск/IPC, десятки миллисекунд каждое).
-            // В гонке за заказ эти миллисекунды решают, кто кликнет первым.
+            // ── Принят: КЛИК — САМЫЙ ПЕРВЫЙ ──────────────────────────────
+            // Критично для скорости: клик должен случиться раньше городов (если их ещё
+            // не считали), статистики, лога и уведомлений — это гонка за заказ.
             processedOrders.add(cardKey)
             if (processedOrders.size > 200) processedOrders.clear()
 
@@ -310,6 +308,27 @@ class InDriverAccessibilityService : AccessibilityService() {
                 if (!tapCardByPrice(price.toInt().toString())) {
                     handler.post { showToast("Подходящий заказ ${price.toInt()} T — нажмите сами!") }
                 }
+            }
+
+            // ВАЖНО: здесь мы НЕ звоним сами — в ленте попутчиков/посылок звонок
+            // запускает сам inDrive в момент нажатия на карточку (это его фича).
+            // Номер в такой карточке часто скрыт/отсутствует, поэтому:
+            //  1) если номер всё же есть в тексте карточки — взводим CallStateManager сразу;
+            //  2) если номера нет — взводим "слепое" распознавание через CallLog: оно
+            //     само поймает реальный номер из исходящего звонка, который inDrive
+            //     только что инициировал, и передаст его в CallStateManager.
+            val phone = extractPhone(cardText)
+            if (phone.isNotEmpty()) {
+                if (::callStateManager.isInitialized) callStateManager.setPendingPhone(phone)
+            } else if (::whatsAppWatcher.isInitialized && ::callStateManager.isInitialized) {
+                whatsAppWatcher.armBlind { discovered -> callStateManager.setPendingPhone(discovered) }
+            }
+
+            // ── Дальше не спеша: города (если выше не считали), статистика, лог, уведомления ──
+            if (cityFrom.isEmpty() && cityTo.isEmpty()) {
+                val foundCities = PreferenceManager.KZ_CITIES.filter { cardText.contains(it, ignoreCase = true) }
+                cityFrom = foundCities.firstOrNull() ?: "Астана"
+                cityTo   = foundCities.firstOrNull { !it.equals(cityFrom, ignoreCase = true) } ?: ""
             }
 
             prefs.incrementAccepted()
@@ -325,7 +344,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 status = "ПРИНЯТ", reason = ""
             ))
 
-            val info = OrderInfo(price, 0.0, 0.0, 0.0, 0, "",
+            val info = OrderInfo(price, 0.0, 0.0, 0.0, 0, phone,
                 "", cityFrom, cityTo, cityFrom, cityTo, "", true, orderType, cardText)
             onOrderDetected?.invoke(info)
 
@@ -547,7 +566,7 @@ class InDriverAccessibilityService : AccessibilityService() {
                 minOf(start + 600, fullText.length)
             val cardText = fullText.substring(start, end)
 
-            val info = parseOrderCard(cardText)
+            val info = parseOrderCardFast(cardText)
             if (info.price <= 0) continue
 
             val cardKey = "${info.price}_${info.addressFrom}".hashCode()
@@ -559,26 +578,30 @@ class InDriverAccessibilityService : AccessibilityService() {
                 if (processedOrders.size > 200) processedOrders.clear()
 
                 // Звонок — это и есть "первыми получить заказ", запускаем его
-                // раньше статистики/лога/уведомлений (диск + IPC = миллисекунды простоя).
+                // САМЫМ первым, раньше любых дополнительных вычислений.
                 if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty()) scheduleCall(info.phone)
 
+                // Не спеша: всё, что не влияет на звонок — рейтинг, имя клиента,
+                // способ оплаты, цена/км и т.д. — только для статистики и лога.
+                val full = fillOrderExtras(info)
+
                 prefs.incrementAccepted()
-                prefs.addEarnings(info.price)
-                prefs.setLastOrderInfo(buildSummary(info))
+                prefs.addEarnings(full.price)
+                prefs.setLastOrderInfo(buildSummary(full))
 
                 logger.add(OrderLogger.LogEntry(
-                    System.currentTimeMillis(), info.orderType, info.price.toInt(),
-                    info.cityFrom, info.cityTo, "ПРИНЯТ", ""
+                    System.currentTimeMillis(), full.orderType, full.price.toInt(),
+                    full.cityFrom, full.cityTo, "ПРИНЯТ", ""
                 ))
 
-                onOrderDetected?.invoke(info)
+                onOrderDetected?.invoke(full)
                 vibrate()
 
-                val notifText = "${info.orderType} — ${info.price.toInt()} T" +
-                    if (info.addressFrom.isNotEmpty()) "\n${info.addressFrom.take(40)}" else ""
+                val notifText = "${full.orderType} — ${full.price.toInt()} T" +
+                    if (full.addressFrom.isNotEmpty()) "\n${full.addressFrom.take(40)}" else ""
                 BotService.showOrderNotification(applicationContext, "Такса нашла заказ!", notifText)
                 BotService.updateBotNotification(applicationContext,
-                    "Последний: ${info.price.toInt()} T — ${info.orderType}")
+                    "Последний: ${full.price.toInt()} T — ${full.orderType}")
 
                 break
             } else {
@@ -592,18 +615,14 @@ class InDriverAccessibilityService : AccessibilityService() {
     // ================================================================
     //  РАЗБОР КАРТОЧКИ ЗАКАЗА
     // ================================================================
-    private fun parseOrderCard(cardText: String): OrderInfo {
-        val pricePerKm   = extractPricePerKm(cardText)
+    private fun parseOrderCardFast(cardText: String): OrderInfo {
+        // Только то, что реально нужно ДО звонка: цена (фильтр), телефон (звонок),
+        // адреса/города (нужны, чтобы понять тип заказа и применить фильтр городов).
         val price        = extractMainPrice(cardText)
-        val distToClient = extractDistanceToClient(cardText)
-        val rating       = extractRating(cardText)
-        val ratingCount  = extractRatingCount(cardText)
-        val clientName   = extractClientName(cardText)
         val addressFrom  = extractAddressFrom(cardText)
         val addressTo    = extractAddressTo(cardText)
         val cityFrom     = extractCityFromAddress(addressFrom)
         val cityTo       = extractCityFromAddress(addressTo)
-        val paymentType  = extractPaymentType(cardText)
         val phone        = extractPhone(cardText)
         val isParcel     = cardText.contains("Отправить посылку", ignoreCase = true) ||
                            cardText.contains("посылк", ignoreCase = true)
@@ -614,9 +633,24 @@ class InDriverAccessibilityService : AccessibilityService() {
             else        -> "Весь салон"
         }
         return OrderInfo(
-            price, pricePerKm, distToClient, rating, ratingCount,
-            phone, clientName, addressFrom, addressTo,
-            cityFrom, cityTo, paymentType, isIntercity, orderType, cardText
+            price, 0.0, 0.0, 0.0, 0,
+            phone, "", addressFrom, addressTo,
+            cityFrom, cityTo, "", isIntercity, orderType, cardText
+        )
+    }
+
+    // Остальное (рейтинг, имя клиента, способ оплаты, расстояние, цена/км) — только
+    // для лога и статистики, на решение "звонить или нет" не влияет. Считаем это
+    // ПОСЛЕ звонка, не спеша.
+    private fun fillOrderExtras(info: OrderInfo): OrderInfo {
+        val cardText = info.rawText
+        return info.copy(
+            pricePerKm       = extractPricePerKm(cardText),
+            distanceToClient = extractDistanceToClient(cardText),
+            rating           = extractRating(cardText),
+            ratingCount      = extractRatingCount(cardText),
+            clientName       = extractClientName(cardText),
+            paymentType      = extractPaymentType(cardText)
         )
     }
 
@@ -627,7 +661,7 @@ class InDriverAccessibilityService : AccessibilityService() {
         // Экран одиночного заказа — тоже всегда «Весь салон».
         if (prefs.getMode() != PreferenceManager.MODE_ALL) return
 
-        val info = parseOrderCard(fullText)
+        val info = parseOrderCardFast(fullText)
         if (info.price <= 0) return
 
         val cardKey = "${info.price}_${info.addressFrom}".hashCode()
@@ -637,20 +671,22 @@ class InDriverAccessibilityService : AccessibilityService() {
         if (passed) {
             processedOrders.add(cardKey)
 
-            // Звонок сначала — статистика/лог/уведомления после.
+            // Звонок сначала — самым первым, остальное (рейтинг, оплата, имя клиента) после.
             if (prefs.isAutoCallEnabled() && info.phone.isNotEmpty()) scheduleCall(info.phone)
 
+            val full = fillOrderExtras(info)
+
             prefs.incrementAccepted()
-            prefs.addEarnings(info.price)
-            prefs.setLastOrderInfo(buildSummary(info))
+            prefs.addEarnings(full.price)
+            prefs.setLastOrderInfo(buildSummary(full))
             logger.add(OrderLogger.LogEntry(
-                System.currentTimeMillis(), info.orderType, info.price.toInt(),
-                info.cityFrom, info.cityTo, "ПРИНЯТ", ""
+                System.currentTimeMillis(), full.orderType, full.price.toInt(),
+                full.cityFrom, full.cityTo, "ПРИНЯТ", ""
             ))
-            onOrderDetected?.invoke(info)
+            onOrderDetected?.invoke(full)
             vibrate()
             BotService.showOrderNotification(applicationContext,
-                "Такса нашла заказ!", "${info.price.toInt()} T — ${info.orderType}")
+                "Такса нашла заказ!", "${full.price.toInt()} T — ${full.orderType}")
         } else {
             prefs.incrementMissed()
             logMissed(info.orderType, info.price, info.cityFrom, info.cityTo, reason)
